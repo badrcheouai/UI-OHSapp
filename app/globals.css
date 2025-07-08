@@ -1,0 +1,932 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* IMMEDIATE YELLOW ELIMINATION - APPLIED BEFORE ANYTHING ELSE */
+* {
+  /* Override any possible yellow immediately */
+  --yellow-50: 248 250 252 !important;
+  --yellow-100: 248 250 252 !important;
+  --yellow-200: 226 232 240 !important;
+  --yellow-300: 203 213 225 !important;
+  --yellow-400: 148 163 184 !important;
+  --yellow-500: 100 116 139 !important;
+  --yellow-600: 71 85 105 !important;
+  --yellow-700: 51 65 85 !important;
+  --yellow-800: 30 41 59 !important;
+  --yellow-900: 15 23 42 !important;
+  --yellow-950: 2 6 23 !important;
+}
+
+/* Prevent any yellow during page load */
+html {
+  background-color: white !important;
+  color: rgb(15 23 42) !important;
+}
+
+html.dark {
+  background-color: rgb(15 23 42) !important;
+  color: rgb(248 250 252) !important;
+}
+
+/* Override any loading states immediately */
+body {
+  background-color: white !important;
+  color: rgb(15 23 42) !important;
+  transition: none !important;
+}
+
+body.dark {
+  background-color: rgb(15 23 42) !important;
+  color: rgb(248 250 252) !important;
+}
+
+/* Prevent flash during theme transitions */
+* {
+  transition: none !important;
+}
+
+/* Re-enable transitions after page load */
+.transitions-enabled * {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+@layer base {
+  :root {
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 136 19 55;
+    --primary-foreground: 255 255 255;
+    --secondary: 248 250 252;
+    --secondary-foreground: 15 23 42;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --accent: 248 250 252;
+    --accent-foreground: 15 23 42;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+    --border: 226 232 240;
+    --input: 255 255 255;
+    --ring: 136 19 55;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 15 23 42;
+    --foreground: 248 250 252;
+    --card: 30 41 59;
+    --card-foreground: 248 250 252;
+    --popover: 30 41 59;
+    --popover-foreground: 248 250 252;
+    --primary: 190 24 93;
+    --primary-foreground: 255 255 255;
+    --secondary: 51 65 85;
+    --secondary-foreground: 248 250 252;
+    --muted: 51 65 85;
+    --muted-foreground: 148 163 184;
+    --accent: 51 65 85;
+    --accent-foreground: 248 250 252;
+    --destructive: 220 38 38;
+    --destructive-foreground: 248 250 252;
+    --border: 51 65 85;
+    --input: 30 41 59;
+    --ring: 190 24 93;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Global Loading Overlay - NO YELLOW */
+.global-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: white;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
+}
+
+.dark .global-loading-overlay {
+  background-color: rgb(15 23 42);
+}
+
+.global-loading-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Page Transition Overlay */
+.page-transition-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: white;
+  z-index: 9998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.dark .page-transition-overlay {
+  background-color: rgb(15 23 42);
+}
+
+.page-transition-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* OHSE Professional Color System - ZERO YELLOW */
+.ohse-text-primary {
+  @apply text-slate-900 dark:text-white;
+}
+
+.ohse-text-secondary {
+  @apply text-slate-600 dark:text-slate-300;
+}
+
+.ohse-text-burgundy {
+  @apply text-red-900 dark:text-red-300;
+}
+
+.ohse-text-green {
+  @apply text-emerald-700 dark:text-emerald-400;
+}
+
+.ohse-text-blue {
+  @apply text-blue-700 dark:text-blue-400;
+}
+
+.ohse-text-orange {
+  @apply text-orange-700 dark:text-orange-400;
+}
+
+.ohse-text-red {
+  @apply text-red-700 dark:text-red-400;
+}
+
+.ohse-text-purple {
+  @apply text-purple-700 dark:text-purple-400;
+}
+
+.ohse-text-indigo {
+  @apply text-indigo-700 dark:text-indigo-400;
+}
+
+.ohse-bg-burgundy {
+  @apply bg-red-900 dark:bg-red-800;
+}
+
+.ohse-bg-green {
+  @apply bg-emerald-600 dark:bg-emerald-700;
+}
+
+.ohse-bg-blue {
+  @apply bg-blue-600 dark:bg-blue-700;
+}
+
+.ohse-bg-orange {
+  @apply bg-orange-600 dark:bg-orange-700;
+}
+
+.ohse-bg-red {
+  @apply bg-red-600 dark:bg-red-700;
+}
+
+.ohse-bg-purple {
+  @apply bg-purple-600 dark:bg-purple-700;
+}
+
+.ohse-bg-indigo {
+  @apply bg-indigo-600 dark:bg-indigo-700;
+}
+
+.ohse-card {
+  @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg;
+}
+
+.transitions-enabled .ohse-card {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transitions-enabled .ohse-card:hover {
+  @apply shadow-2xl border-slate-300 dark:border-slate-600;
+  transform: translateY(-4px);
+}
+
+.ohse-btn-primary {
+  @apply bg-red-900 hover:bg-red-800 text-white dark:bg-red-800 dark:hover:bg-red-700;
+}
+
+.transitions-enabled .ohse-btn-primary {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transitions-enabled .ohse-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -8px rgba(136, 19, 55, 0.5);
+}
+
+.ohse-btn-secondary {
+  @apply bg-slate-100 hover:bg-slate-200 text-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white;
+}
+
+.transitions-enabled .ohse-btn-secondary {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transitions-enabled .ohse-btn-secondary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+}
+
+.ohse-input {
+  @apply border-slate-300 dark:border-slate-600 focus:border-red-900 focus:ring-red-900/20 bg-white dark:bg-slate-800;
+}
+
+.transitions-enabled .ohse-input {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transitions-enabled .ohse-input:hover {
+  @apply border-slate-400 dark:border-slate-500;
+}
+
+.transitions-enabled .ohse-input:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px -4px rgba(136, 19, 55, 0.2);
+}
+
+/* Enhanced Animations - NO YELLOW */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(136, 19, 55, 0.3);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 30px rgba(136, 19, 55, 0.5);
+  }
+}
+
+@keyframes subtle-bounce {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-3px);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes spin-smooth {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    background-color: rgb(148 163 184);
+  }
+  50% {
+    opacity: 0.5;
+    background-color: rgb(203 213 225);
+  }
+}
+
+@keyframes loading-dots {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-fade-in {
+  animation: fadeIn 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.animate-subtle-bounce {
+  animation: subtle-bounce 2s ease-in-out infinite;
+}
+
+.animate-spin-smooth {
+  animation: spin-smooth 1s linear infinite;
+}
+
+.animate-loading-pulse {
+  animation: loading-pulse 2s ease-in-out infinite;
+}
+
+.animate-loading-dots {
+  animation: loading-dots 1.4s ease-in-out infinite both;
+}
+
+/* Professional gradients - ZERO YELLOW */
+.ohse-gradient-burgundy {
+  background: linear-gradient(135deg, rgb(136, 19, 55) 0%, rgb(185, 28, 28) 100%);
+}
+
+.ohse-gradient-red {
+  background: linear-gradient(135deg, rgb(185, 28, 28) 0%, rgb(220, 38, 38) 100%);
+}
+
+.ohse-gradient-green {
+  background: linear-gradient(135deg, rgb(34, 197, 94) 0%, rgb(21, 128, 61) 100%);
+}
+
+.ohse-gradient-blue {
+  background: linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%);
+}
+
+.ohse-gradient-orange {
+  background: linear-gradient(135deg, rgb(249, 115, 22) 0%, rgb(234, 88, 12) 100%);
+}
+
+.ohse-gradient-purple {
+  background: linear-gradient(135deg, rgb(147, 51, 234) 0%, rgb(126, 34, 206) 100%);
+}
+
+.ohse-gradient-indigo {
+  background: linear-gradient(135deg, rgb(99, 102, 241) 0%, rgb(79, 70, 229) 100%);
+}
+
+.ohse-gradient-dark {
+  background: linear-gradient(135deg, rgb(30, 41, 59) 0%, rgb(51, 65, 85) 100%);
+}
+
+.ohse-login-bg {
+  background: linear-gradient(135deg, rgb(136, 19, 55) 0%, rgb(153, 27, 27) 50%, rgb(185, 28, 28) 100%);
+}
+
+.dark .ohse-login-bg {
+  background: linear-gradient(135deg, rgb(190, 24, 93) 0%, rgb(136, 19, 55) 50%, rgb(153, 27, 27) 100%);
+}
+
+/* Interactive elements */
+.interactive-hover {
+  cursor: pointer;
+}
+
+.transitions-enabled .interactive-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transitions-enabled .interactive-hover:hover {
+  transform: scale(1.02);
+}
+
+/* Professional status colors - ABSOLUTELY NO YELLOW */
+.status-success {
+  @apply bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800;
+}
+
+.status-warning {
+  @apply bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800;
+}
+
+.status-error {
+  @apply bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800;
+}
+
+.status-info {
+  @apply bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800;
+}
+
+.status-neutral {
+  @apply bg-slate-50 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600;
+}
+
+.status-pending {
+  @apply bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800;
+}
+
+/* Loading states - NO YELLOW */
+.loading-spinner {
+  @apply w-4 h-4 border-2 border-slate-300 border-t-red-600 rounded-full animate-spin-smooth;
+}
+
+.loading-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.loading-dots > div {
+  @apply w-2 h-2 bg-slate-400 rounded-full animate-loading-dots;
+}
+
+.loading-dots > div:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots > div:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.loading-skeleton {
+  @apply bg-slate-200 dark:bg-slate-700 animate-loading-pulse rounded;
+}
+
+/* Enhanced dark mode support */
+.dark .ohse-text-primary {
+  @apply text-white;
+}
+
+.dark .ohse-text-secondary {
+  @apply text-slate-300;
+}
+
+.dark .ohse-text-burgundy {
+  @apply text-red-300;
+}
+
+.dark .ohse-card {
+  @apply bg-slate-800 border-slate-700;
+}
+
+.dark .ohse-input {
+  @apply bg-slate-800 border-slate-600 text-white;
+}
+
+.dark .ohse-btn-secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-white;
+}
+
+.dark .loading-spinner {
+  @apply border-slate-600 border-t-red-400;
+}
+
+.dark .loading-dots > div {
+  @apply bg-slate-500;
+}
+
+/* COMPLETE YELLOW ELIMINATION - NUCLEAR OPTION */
+@layer utilities {
+  /* Override ALL possible yellow variants */
+  .bg-yellow-50,
+  .bg-yellow-100,
+  .bg-yellow-200,
+  .bg-yellow-300,
+  .bg-yellow-400,
+  .bg-yellow-500,
+  .bg-yellow-600,
+  .bg-yellow-700,
+  .bg-yellow-800,
+  .bg-yellow-900 {
+    background-color: rgb(248 250 252) !important;
+  }
+
+  .dark .bg-yellow-50,
+  .dark .bg-yellow-100,
+  .dark .bg-yellow-200,
+  .dark .bg-yellow-300,
+  .dark .bg-yellow-400,
+  .dark .bg-yellow-500,
+  .dark .bg-yellow-600,
+  .dark .bg-yellow-700,
+  .dark .bg-yellow-800,
+  .dark .bg-yellow-900,
+  .dark\:bg-yellow-50,
+  .dark\:bg-yellow-100,
+  .dark\:bg-yellow-200,
+  .dark\:bg-yellow-300,
+  .dark\:bg-yellow-400,
+  .dark\:bg-yellow-500,
+  .dark\:bg-yellow-600,
+  .dark\:bg-yellow-700,
+  .dark\:bg-yellow-800,
+  .dark\:bg-yellow-900,
+  .dark\:bg-yellow-900\/20,
+  .dark\:bg-yellow-800\/20,
+  .dark\:bg-yellow-700\/20 {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Override ALL possible yellow text */
+  .text-yellow-50,
+  .text-yellow-100,
+  .text-yellow-200,
+  .text-yellow-300,
+  .text-yellow-400,
+  .text-yellow-500,
+  .text-yellow-600,
+  .text-yellow-700,
+  .text-yellow-800,
+  .text-yellow-900 {
+    color: rgb(71 85 105) !important;
+  }
+
+  .dark .text-yellow-50,
+  .dark .text-yellow-100,
+  .dark .text-yellow-200,
+  .dark .text-yellow-300,
+  .dark .text-yellow-400,
+  .dark .text-yellow-500,
+  .dark .text-yellow-600,
+  .dark .text-yellow-700,
+  .dark .text-yellow-800,
+  .dark .text-yellow-900,
+  .dark\:text-yellow-50,
+  .dark\:text-yellow-100,
+  .dark\:text-yellow-200,
+  .dark\:text-yellow-300,
+  .dark\:text-yellow-400,
+  .dark\:text-yellow-500,
+  .dark\:text-yellow-600,
+  .dark\:text-yellow-700,
+  .dark\:text-yellow-800,
+  .dark\:text-yellow-900 {
+    color: rgb(203 213 225) !important;
+  }
+
+  /* Override ALL possible yellow borders */
+  .border-yellow-50,
+  .border-yellow-100,
+  .border-yellow-200,
+  .border-yellow-300,
+  .border-yellow-400,
+  .border-yellow-500,
+  .border-yellow-600,
+  .border-yellow-700,
+  .border-yellow-800,
+  .border-yellow-900 {
+    border-color: rgb(226 232 240) !important;
+  }
+
+  .dark .border-yellow-50,
+  .dark .border-yellow-100,
+  .dark .border-yellow-200,
+  .dark .border-yellow-300,
+  .dark .border-yellow-400,
+  .dark .border-yellow-500,
+  .dark .border-yellow-600,
+  .dark .border-yellow-700,
+  .dark .border-yellow-800,
+  .dark .border-yellow-900,
+  .dark\:border-yellow-50,
+  .dark\:border-yellow-100,
+  .dark\:border-yellow-200,
+  .dark\:border-yellow-300,
+  .dark\:border-yellow-400,
+  .dark\:border-yellow-500,
+  .dark\:border-yellow-600,
+  .dark\:border-yellow-700,
+  .dark\:border-yellow-800,
+  .dark\:border-yellow-900 {
+    border-color: rgb(51 65 85) !important;
+  }
+
+  /* Override ALL hover states */
+  .hover\:bg-yellow-50:hover,
+  .hover\:bg-yellow-100:hover,
+  .hover\:bg-yellow-200:hover,
+  .hover\:bg-yellow-300:hover,
+  .hover\:bg-yellow-400:hover,
+  .hover\:bg-yellow-500:hover {
+    background-color: rgb(248 250 252) !important;
+  }
+
+  .dark .hover\:bg-yellow-50:hover,
+  .dark .hover\:bg-yellow-100:hover,
+  .dark .hover\:bg-yellow-200:hover,
+  .dark .hover\:bg-yellow-300:hover,
+  .dark .hover\:bg-yellow-400:hover,
+  .dark .hover\:bg-yellow-500:hover,
+  .dark\:hover\:bg-yellow-50:hover,
+  .dark\:hover\:bg-yellow-100:hover,
+  .dark\:hover\:bg-yellow-200:hover,
+  .dark\:hover\:bg-yellow-300:hover,
+  .dark\:hover\:bg-yellow-400:hover,
+  .dark\:hover\:bg-yellow-500:hover,
+  .dark\:hover\:bg-yellow-900\/20:hover,
+  .dark\:hover\:bg-yellow-800\/20:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  .hover\:text-yellow-600:hover,
+  .hover\:text-yellow-700:hover,
+  .hover\:text-yellow-800:hover,
+  .hover\:text-yellow-900:hover {
+    color: rgb(185 28 28) !important;
+  }
+
+  .dark .hover\:text-yellow-600:hover,
+  .dark .hover\:text-yellow-700:hover,
+  .dark .hover\:text-yellow-800:hover,
+  .dark .hover\:text-yellow-900:hover,
+  .dark\:hover\:text-yellow-400:hover,
+  .dark\:hover\:text-yellow-300:hover {
+    color: rgb(248 113 113) !important;
+  }
+
+  /* Override focus states */
+  .focus\:bg-yellow-50:focus,
+  .focus\:bg-yellow-100:focus,
+  .focus\:bg-yellow-200:focus {
+    background-color: rgb(248 250 252) !important;
+  }
+
+  .focus\:text-yellow-600:focus,
+  .focus\:text-yellow-700:focus,
+  .focus\:text-yellow-800:focus {
+    color: rgb(185 28 28) !important;
+  }
+
+  .focus\:border-yellow-300:focus,
+  .focus\:border-yellow-400:focus,
+  .focus\:border-yellow-500:focus {
+    border-color: rgb(185 28 28) !important;
+  }
+
+  /* Override ring colors */
+  .focus\:ring-yellow-500:focus,
+  .focus\:ring-yellow-400:focus,
+  .focus\:ring-yellow-300:focus {
+    --tw-ring-color: rgb(185 28 28) !important;
+  }
+}
+
+/* COMPREHENSIVE HOVER STATE YELLOW ELIMINATION */
+@layer utilities {
+  /* Dark mode hover state overrides - ZERO YELLOW */
+  .dark .hover\:bg-yellow-50:hover,
+  .dark .hover\:bg-yellow-100:hover,
+  .dark .hover\:bg-yellow-200:hover,
+  .dark .hover\:bg-yellow-300:hover,
+  .dark .hover\:bg-yellow-400:hover,
+  .dark .hover\:bg-yellow-500:hover,
+  .dark .hover\:bg-yellow-600:hover,
+  .dark .hover\:bg-yellow-700:hover,
+  .dark .hover\:bg-yellow-800:hover,
+  .dark .hover\:bg-yellow-900:hover,
+  .dark\:hover\:bg-yellow-50:hover,
+  .dark\:hover\:bg-yellow-100:hover,
+  .dark\:hover\:bg-yellow-200:hover,
+  .dark\:hover\:bg-yellow-300:hover,
+  .dark\:hover\:bg-yellow-400:hover,
+  .dark\:hover\:bg-yellow-500:hover,
+  .dark\:hover\:bg-yellow-600:hover,
+  .dark\:hover\:bg-yellow-700:hover,
+  .dark\:hover\:bg-yellow-800:hover,
+  .dark\:hover\:bg-yellow-900:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Override any component hover states that might use yellow */
+  .dark .hover\:bg-amber-50:hover,
+  .dark .hover\:bg-amber-100:hover,
+  .dark .hover\:bg-amber-200:hover,
+  .dark .hover\:bg-amber-300:hover,
+  .dark .hover\:bg-amber-400:hover,
+  .dark .hover\:bg-amber-500:hover,
+  .dark\:hover\:bg-amber-50:hover,
+  .dark\:hover\:bg-amber-100:hover,
+  .dark\:hover\:bg-amber-200:hover,
+  .dark\:hover\:bg-amber-300:hover,
+  .dark\:hover\:bg-amber-400:hover,
+  .dark\:hover\:bg-amber-500:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Button hover states - ensure no yellow */
+  .dark button:hover,
+  .dark .btn:hover,
+  .dark [role="button"]:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Card hover states */
+  .dark .ohse-card:hover {
+    background-color: rgb(30 41 59) !important;
+    border-color: rgb(51 65 85) !important;
+  }
+
+  /* Navigation hover states */
+  .dark nav button:hover,
+  .dark nav a:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Input hover states */
+  .dark input:hover,
+  .dark textarea:hover,
+  .dark select:hover {
+    border-color: rgb(71 85 105) !important;
+    background-color: rgb(30 41 59) !important;
+  }
+
+  /* Override any shadcn component hover states */
+  .dark .hover\:bg-accent:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  .dark .hover\:bg-muted:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  .dark .hover\:bg-secondary:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Ensure dropdown and popover hover states are not yellow */
+  .dark [data-radix-popper-content-wrapper] *:hover,
+  .dark [role="menu"] *:hover,
+  .dark [role="menuitem"]:hover,
+  .dark [role="option"]:hover {
+    background-color: rgb(51 65 85) !important;
+  }
+
+  /* Override any possible warning/alert hover states */
+  .dark .hover\:bg-warning:hover,
+  .dark .hover\:bg-alert:hover {
+    background-color: rgb(194 65 12) !important; /* Orange instead of yellow */
+  }
+
+  /* Text hover states */
+  .dark .hover\:text-yellow-600:hover,
+  .dark .hover\:text-yellow-700:hover,
+  .dark .hover\:text-yellow-800:hover,
+  .dark .hover\:text-yellow-900:hover,
+  .dark\:hover\:text-yellow-400:hover,
+  .dark\:hover\:text-yellow-300:hover,
+  .dark\:hover\:text-yellow-200:hover {
+    color: rgb(248 113 113) !important; /* Red instead of yellow */
+  }
+
+  /* Border hover states */
+  .dark .hover\:border-yellow-300:hover,
+  .dark .hover\:border-yellow-400:hover,
+  .dark .hover\:border-yellow-500:hover,
+  .dark\:hover\:border-yellow-300:hover,
+  .dark\:hover\:border-yellow-400:hover,
+  .dark\:hover\:border-yellow-500:hover {
+    border-color: rgb(71 85 105) !important;
+  }
+
+  /* Focus-visible states to prevent yellow */
+  .dark .focus-visible\:ring-yellow-500:focus-visible,
+  .dark .focus-visible\:ring-yellow-400:focus-visible,
+  .dark .focus\:ring-yellow-500:focus,
+  .dark .focus\:ring-yellow-400:focus {
+    --tw-ring-color: rgb(248 113 113) !important;
+  }
+
+  /* Active states */
+  .dark .active\:bg-yellow-600:active,
+  .dark .active\:bg-yellow-700:active,
+  .dark\:active\:bg-yellow-600:active,
+  .dark\:active\:bg-yellow-700:active {
+    background-color: rgb(30 41 59) !important;
+  }
+}
+
+/* Enhanced dark mode component overrides */
+.dark {
+  /* Override any possible component library defaults */
+  --warning-color: rgb(194 65 12) !important; /* Orange */
+  --alert-color: rgb(194 65 12) !important; /* Orange */
+  --caution-color: rgb(194 65 12) !important; /* Orange */
+
+  /* Ensure all interactive elements use proper colors */
+  --hover-bg: rgb(51 65 85) !important;
+  --hover-border: rgb(71 85 105) !important;
+  --hover-text: rgb(248 250 252) !important;
+}
+
+/* Force override any CSS-in-JS or inline styles */
+.dark [style*="yellow"],
+.dark [style*="amber"],
+.dark [class*="yellow"],
+.dark [class*="amber"] {
+  background-color: rgb(51 65 85) !important;
+  color: rgb(248 250 252) !important;
+  border-color: rgb(71 85 105) !important;
+}
+
+/* Override any possible Tailwind JIT generated classes */
+.dark .bg-yellow-50\/10,
+.dark .bg-yellow-100\/10,
+.dark .bg-yellow-200\/10,
+.dark .bg-yellow-300\/10,
+.dark .bg-yellow-400\/10,
+.dark .bg-yellow-500\/10,
+.dark .hover\:bg-yellow-50\/10:hover,
+.dark .hover\:bg-yellow-100\/10:hover,
+.dark .hover\:bg-yellow-200\/10:hover {
+  background-color: rgba(51, 65, 85, 0.1) !important;
+}
