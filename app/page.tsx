@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { LoadingSpinner } from "@/components/loading-spinner"
+import Link from "next/link"
 
 export default function HomePage() {
   const router = useRouter()
@@ -16,11 +17,10 @@ export default function HomePage() {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 flex items-center justify-center">
-      <div className="text-center">
-        <LoadingSpinner size="lg" />
-        <p className="mt-4 text-slate-600 dark:text-slate-300">Redirection vers la page de connexion...</p>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
+      <h1 className="text-4xl font-bold mb-4 ohse-text-burgundy">Bienvenue sur OSHapp</h1>
+      <p className="text-lg mb-8">La plateforme de gestion santé & sécurité au travail.</p>
+      <Link href="/login" className="ohse-btn-primary px-6 py-3 rounded-lg text-lg">Se connecter</Link>
     </div>
   )
 }

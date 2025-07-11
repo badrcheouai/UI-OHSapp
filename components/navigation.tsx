@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Menu, X, Shield, Users, Settings, Home, AlertTriangle, FileText, Globe, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface NavigationProps {
   language?: "en" | "fr"
@@ -18,6 +19,7 @@ export function Navigation({ language = "fr" }: NavigationProps) {
   const [isNavigating, setIsNavigating] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const { logout } = useAuth()
 
   const text = {
     fr: {
@@ -65,7 +67,7 @@ export function Navigation({ language = "fr" }: NavigationProps) {
   const handleLogout = () => {
     setIsNavigating(true)
     setTimeout(() => {
-      window.location.href = "/login"
+      logout()
     }, 100)
   }
 
@@ -122,7 +124,7 @@ export function Navigation({ language = "fr" }: NavigationProps) {
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
-                  className="ohse-text-secondary hover:ohse-text-burgundy"
+                  className="ohse-text-secondary hover:ohse-bg-burgundy hover:text-white transition-colors"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   {t.logout}
@@ -175,7 +177,7 @@ export function Navigation({ language = "fr" }: NavigationProps) {
                 <Button
                   variant="ghost"
                   onClick={handleLogout}
-                  className="w-full justify-start gap-3 px-3 py-3 h-auto text-base font-medium ohse-text-secondary hover:ohse-text-burgundy"
+                  className="w-full justify-start gap-3 px-3 py-3 h-auto text-base font-medium ohse-text-secondary hover:ohse-bg-burgundy hover:text-white transition-colors"
                 >
                   <LogOut className="h-5 w-5" />
                   {t.logout}
