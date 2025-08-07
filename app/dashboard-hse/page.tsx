@@ -20,18 +20,39 @@ import {
   Clipboard,
   ChevronDown,
   Leaf,
+  Stethoscope,
+  Clock,
+  AlertCircle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useState } from "react"
 import { useEffect } from "react"
+import { CompanyLogo } from "@/components/company-logo"
+import NotificationBell from "@/components/NotificationBell"
+import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
 
 export default function DashboardHSE() {
   const { user, logout, loading } = useAuth()
   const { t } = useTranslation()
   const router = useRouter()
   const [language, setLanguage] = useState<"en" | "fr">("fr")
+  
+  // Medical visit requests state
+  const [pendingRequests, setPendingRequests] = useState<MedicalVisitRequest[]>([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  const [requestStats, setRequestStats] = useState({
+    pending: 0,
+    proposed: 0,
+    confirmed: 0,
+    urgent: 0
+  })
 
   if (loading) {
     return (
@@ -43,14 +64,46 @@ export default function DashboardHSE() {
   }
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.replace("/login")
-    } else if (!(user.roles.includes("RESP_HSE") || user.roles.includes("ADMIN"))) {
+    } else if (!loading && user && !user.roles.includes("RESP_HSE")) {
       router.replace("/403")
     }
-  }, [user, router])
-  if (!user || !(user.roles.includes("RESP_HSE") || user.roles.includes("ADMIN"))) {
-    return null
+  }, [user, loading, router])
+
+  // Load medical visit requests and statistics
+  useEffect(() => {
+    const loadMedicalData = async () => {
+      if (!user) return
+      
+      setLoadingRequests(true)
+      try {
+        // Load pending requests
+        const pendingResponse = await medicalVisitAPI.getPendingRequests()
+        setPendingRequests(pendingResponse.data)
+        
+        // Load statistics
+        const statsResponse = await medicalVisitAPI.getRequestCounts()
+        const urgentResponse = await medicalVisitAPI.getUrgentRequestCounts()
+        
+        setRequestStats({
+          pending: statsResponse.data.PENDING || 0,
+          proposed: statsResponse.data.PROPOSED || 0,
+          confirmed: statsResponse.data.CONFIRMED || 0,
+          urgent: urgentResponse.data.PENDING || 0
+        })
+      } catch (error) {
+        console.error("Error loading medical visit data:", error)
+      } finally {
+        setLoadingRequests(false)
+      }
+    }
+
+    loadMedicalData()
+  }, [user])
+  if (loading) return null;
+  if (!user || !user.roles.includes("RESP_HSE")) {
+    return null;
   }
 
   const responsibilities = [
@@ -94,9 +147,7 @@ export default function DashboardHSE() {
       <div className="flex justify-between items-center mb-8 animate-slide-down">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-gradient-to-r from-orange-600 to-orange-800 rounded-lg flex items-center justify-center shadow-lg">
-              <ShieldCheck className="h-4 w-4 text-white" />
-            </div>
+            <CompanyLogo />
             <span className="text-lg font-bold bg-gradient-to-r from-orange-700 to-orange-900 bg-clip-text text-transparent">
               OHSE HSE
             </span>
@@ -104,7 +155,7 @@ export default function DashboardHSE() {
           <div className="flex items-center gap-2 ml-4">
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="h-8 px-3 text-xs font-medium rounded-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-all duration-300 flex items-center gap-1"
+              className="h-8 px-3 text-xs font-medium rounded-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-300 flex items-center gap-1 text-foreground dark:text-white"
             >
               <Globe className="h-3 w-3" />
               {language === "en" ? "FR" : "EN"}
@@ -112,32 +163,32 @@ export default function DashboardHSE() {
             <ThemeToggle />
           </div>
         </div>
-      </div>
-
-      {/* Profile Dropdown */}
-      <div className="absolute top-4 right-4 z-20 animate-slide-left">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-all duration-300 hover:scale-105">
-              <div className="h-6 w-6 bg-gradient-to-r from-orange-500 to-orange-700 rounded-lg flex items-center justify-center">
-                <User className="h-3 w-3 text-white" />
-              </div>
-              <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{user?.username}</span>
-              <ChevronDown className="h-3 w-3 text-slate-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem asChild>
-              <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
-                <User className="h-4 w-4" /> {t("Mon profil")}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-red-600 flex items-center gap-2 cursor-pointer">
-              <LogOut className="h-4 w-4" /> {t("Déconnexion")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* NotificationBell and Profile Dropdown aligned right */}
+        <div className="flex items-center gap-4">
+          <NotificationBell userId={user?.id?.toString() ?? ''} gradient="linear-gradient(90deg, #f59e42 0%, #ea580c 100%)" menuGradient="linear-gradient(90deg, #f59e42 0%, #ea580c 100%)" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-all duration-300 hover:scale-105">
+                <div className="h-6 w-6 bg-gradient-to-r from-orange-500 to-orange-700 rounded-lg flex items-center justify-center">
+                  <User className="h-3 w-3 text-white" />
+                </div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{user?.username}</span>
+                <ChevronDown className="h-3 w-3 text-slate-500" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-xl rounded-xl">
+              <DropdownMenuItem asChild>
+                <Link href="/profile" className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-foreground dark:text-white p-3">
+                  <User className="h-4 w-4" /> {t("Mon profil")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-700" />
+              <DropdownMenuItem onClick={logout} className="text-red-600 dark:text-red-400 flex items-center gap-2 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 p-3">
+                <LogOut className="h-4 w-4" /> {t("Déconnexion")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -203,6 +254,105 @@ export default function DashboardHSE() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Medical Visit Requests Section */}
+          <div className="p-6 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <Stethoscope className="h-5 w-5 text-orange-600" />
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Demandes de visite médicale</h2>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <Card className="text-center p-4">
+                <CardContent className="p-2">
+                  <div className="text-2xl font-bold text-orange-600">{requestStats.pending}</div>
+                  <div className="text-sm text-slate-600">En attente</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center p-4">
+                <CardContent className="p-2">
+                  <div className="text-2xl font-bold text-blue-600">{requestStats.proposed}</div>
+                  <div className="text-sm text-slate-600">Proposées</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center p-4">
+                <CardContent className="p-2">
+                  <div className="text-2xl font-bold text-green-600">{requestStats.confirmed}</div>
+                  <div className="text-sm text-slate-600">Confirmées</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center p-4">
+                <CardContent className="p-2">
+                  <div className="text-2xl font-bold text-red-600">{requestStats.urgent}</div>
+                  <div className="text-sm text-slate-600">Urgentes</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Pending Requests List */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-md font-semibold text-slate-900 dark:text-slate-100">
+                  Demandes en attente ({pendingRequests.length})
+                </h3>
+                <Link href="/demande-visite-medicale">
+                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
+                    Voir tout
+                  </Button>
+                </Link>
+              </div>
+
+              {loadingRequests ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-300"></div>
+                  <span className="ml-2 text-slate-600">Chargement...</span>
+                </div>
+              ) : pendingRequests.length > 0 ? (
+                <div className="space-y-3">
+                  {pendingRequests.slice(0, 3).map((request) => (
+                    <Card key={request.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium text-slate-900 dark:text-slate-100">
+                                {request.employeeName}
+                              </span>
+                              <Badge variant={request.urgent ? "destructive" : "secondary"}>
+                                {request.urgent ? "Urgent" : "Normal"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                              {request.motif}
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {format(new Date(request.dateSouhaitee), "dd/MM/yyyy", { locale: fr })}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {request.employeeDepartment}
+                              </span>
+                            </div>
+                          </div>
+                          <Button size="sm" variant="outline">
+                            Traiter
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-8 text-slate-600">
+                  <Stethoscope className="h-12 w-12 mx-auto mb-4 text-slate-400" />
+                  <p>Aucune demande en attente</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

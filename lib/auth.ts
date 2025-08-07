@@ -1,5 +1,3 @@
-
-
 const KC_REALM      = "oshapp"
 const KC_BASE       = "http://localhost:8080/realms/" + KC_REALM
 const TOKEN_URL     = KC_BASE + "/protocol/openid-connect/token"
@@ -16,14 +14,14 @@ const STORE_KEY = "oshapp_tokens"
 
 // ---------- localStorage helpers ----------
 export function saveTokens(tok: Tokens) {
-    sessionStorage.setItem(STORE_KEY, JSON.stringify(tok))
+    localStorage.setItem(STORE_KEY, JSON.stringify(tok))
 }
 export function loadTokens(): Tokens | null {
-    const raw = sessionStorage.getItem(STORE_KEY)
+    const raw = localStorage.getItem(STORE_KEY)
     return raw ? (JSON.parse(raw) as Tokens) : null
 }
 export function clearTokens() {
-    sessionStorage.removeItem(STORE_KEY)
+    localStorage.removeItem(STORE_KEY)
 }
 
 // ---------- credential login ----------

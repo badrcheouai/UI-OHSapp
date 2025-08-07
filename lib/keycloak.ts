@@ -22,12 +22,12 @@ export async function initKC() {
     onLoad: 'check-sso',
     pkceMethod: 'S256',
     checkLoginIframe: false,
-    token: sessionStorage.kc_t ?? undefined,
-    refreshToken: sessionStorage.kc_r ?? undefined,
+    token: localStorage.kc_t ?? undefined,
+    refreshToken: localStorage.kc_r ?? undefined,
   });
   if (keycloak.authenticated) {
-    sessionStorage.kc_t = keycloak.token!;
-    sessionStorage.kc_r = keycloak.refreshToken!;
+    localStorage.kc_t = keycloak.token!;
+    localStorage.kc_r = keycloak.refreshToken!;
     const u = new URL(location.href);
     const hadCode = u.searchParams.has('code');
     const hadState = u.searchParams.has('state');
@@ -45,8 +45,8 @@ setInterval(async () => {
   if (!keycloak.authenticated) return;
   try {
     await keycloak.updateToken(30);
-    sessionStorage.kc_t = keycloak.token!;
-    sessionStorage.kc_r = keycloak.refreshToken!;
+    localStorage.kc_t = keycloak.token!;
+    localStorage.kc_r = keycloak.refreshToken!;
   } catch {
     keycloak.login();
   }

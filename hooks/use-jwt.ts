@@ -9,4 +9,4 @@ export function useJwt(token?: string) {
       return null
     }
   }, [token])
-} 
+}

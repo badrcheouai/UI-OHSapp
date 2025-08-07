@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { saveTokens } from "@/lib/auth"
 import { jwtDecode } from "jwt-decode"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function GoogleCallback() {
   const router = useRouter()
   const params = useSearchParams()
   const hasRun = useRef(false)
   const [status, setStatus] = useState<'loading' | 'error'>('loading')
+  const { setLoginInProgress } = useAuth()
 
   const code = params.get("code")
   const errorParam = params.get("error")
@@ -28,31 +30,17 @@ export default function GoogleCallback() {
     }
   }
 
-  // Helper: redirect user based on their role
-  function redirectByRole(token: string) {
-    try {
-      // jwtDecode returns unknown, so cast as any for role access
-      const payload = jwtDecode(token) as any
-      const roles = payload?.realm_access?.roles || []
-      if (roles.includes("ADMIN")) router.replace("/dashboard")
-      else if (roles.includes("RESP_RH")) router.replace("/dashboard-rh")
-      else if (roles.includes("INFIRMIER_ST")) router.replace("/dashboard-infirmier")
-      else if (roles.includes("MEDECIN_TRAVAIL")) router.replace("/dashboard-medecin")
-      else if (roles.includes("RESP_HSE")) router.replace("/dashboard-hse")
-      else if (roles.includes("SALARIE")) router.replace("/dashboard-salarie")
-      else router.replace("/profile")
-    } catch {
-      router.replace("/profile")
-    }
-  }
-
   useEffect(() => {
+    // Set login in progress to prevent AuthContext from redirecting
+    setLoginInProgress(true)
+    
     // If error param in URL, redirect to login immediately
     if (errorParam) {
       setStatus('error')
       setTimeout(() => {
         removeAuthParamsFromUrl()
-        router.replace('/login')
+        setLoginInProgress(false)
+        router.push('/')
       }, 1000)
       return
     }
@@ -61,7 +49,8 @@ export default function GoogleCallback() {
       setStatus('error')
       setTimeout(() => {
         removeAuthParamsFromUrl()
-        router.replace('/login')
+        setLoginInProgress(false)
+        router.push('/')
       }, 3000)
       return
     }
@@ -69,8 +58,8 @@ export default function GoogleCallback() {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    // Always show spinner for at least 3 seconds
-    const minWait = new Promise(res => setTimeout(res, 3000))
+    // Professional wait time
+    const minWait = new Promise(res => setTimeout(res, 2500))
     fetch("http://localhost:8080/realms/oshapp/protocol/openid-connect/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -81,29 +70,48 @@ export default function GoogleCallback() {
         redirect_uri: "http://localhost:3000/login/callback",
       }),
     })
-      .then(res => res.json())
+      .then(res => {
+        console.log('🔍 Token exchange response status:', res.status);
+        if (!res.ok) {
+          return res.text().then(text => {
+            console.log('❌ Token exchange failed:', text);
+            throw new Error(`Token exchange failed: ${res.status} ${text}`);
+          });
+        }
+        return res.json();
+      })
       .then(tokens => {
+        console.log('🔍 Received tokens:', tokens);
         if (tokens && typeof tokens.access_token === 'string') {
+          console.log('💾 Saving tokens to localStorage...');
           saveTokens(tokens)
-          removeAuthParamsFromUrl()
-          // Wait for spinner, then redirect by role
-          minWait.then(() => redirectByRole(tokens.access_token))
+          console.log('✅ Tokens after save:', localStorage.getItem('oshapp_tokens'));
+          console.log('🔄 Redirecting in 200ms...');
+          setTimeout(() => {
+            console.log('🚀 Redirecting to /');
+            window.location.replace('/')
+          }, 200);
+          return; // Prevent further code from running
         } else {
+          console.log('❌ Invalid tokens received:', tokens);
           setStatus('error')
           setTimeout(() => {
             removeAuthParamsFromUrl()
-            router.replace('/login')
-          }, 5000)
+            setLoginInProgress(false)
+            router.push('/login')
+          }, 3000)
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.log('❌ Error during token exchange:', error);
         setStatus('error')
         setTimeout(() => {
           removeAuthParamsFromUrl()
-          router.replace('/login')
-        }, 5000)
+          setLoginInProgress(false)
+          router.push('/')
+        }, 3000)
       })
-  }, [router, code, errorParam, sessionState])
+  }, [router, code, errorParam, sessionState, setLoginInProgress])
 
   const lang = typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en' : 'fr';
 

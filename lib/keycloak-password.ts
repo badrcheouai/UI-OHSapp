@@ -65,4 +65,4 @@ export async function changeUserPassword({
   );
   if (!res.ok) throw new Error("Password change failed");
   return true;
-} 
+}

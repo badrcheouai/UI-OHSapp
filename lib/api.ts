@@ -1,16 +1,78 @@
 import axios from 'axios';
-import  keycloak  from './keycloak';
 
 export const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_BASE,
+    baseURL: 'http://localhost:8081',
+    params: {
+        v: Date.now(), // Cache busting
+    },
+    // Add timeout configuration
+    timeout: 10000,
 });
 
 api.interceptors.request.use(cfg => {
-    if (keycloak.token) {
-        cfg.headers.Authorization = `Bearer ${keycloak.token}`;
+    // Get token from localStorage (same as AuthContext)
+    const stored = localStorage.getItem("oshapp_tokens");
+    console.log('🔍 API Interceptor - stored tokens:', stored ? 'found' : 'not found');
+    
+    if (stored) {
+        try {
+            const parsed = JSON.parse(stored);
+            console.log('🔍 API Interceptor - parsed tokens:', parsed);
+            
+            if (parsed.access_token) {
+                cfg.headers.Authorization = `Bearer ${parsed.access_token}`;
+                console.log('🔍 API Interceptor - Authorization header set');
+            }
+        } catch (error) {
+            console.error('❌ API Interceptor - Error parsing tokens:', error);
+        }
     }
+    
+    console.log('🔍 API Interceptor - Final config headers:', cfg.headers);
     return cfg;
 });
+
+api.interceptors.response.use(
+    response => {
+        console.log('✅ API Response Success:', response.status, response.config.url);
+        return response;
+    },
+    error => {
+        console.log('❌ API Response Error:', error.response?.status, error.response?.statusText, error.config?.url);
+        
+        // Check for timeout or connection errors
+        if (error.code === 'ECONNABORTED' || error.message === 'timeout of 10000ms exceeded') {
+            console.log('🌐 Backend Connection Timeout - Server may not be running on port 8081');
+            // Don't throw the error, let the component handle it
+            return Promise.reject(error);
+        }
+        
+        // Check for network errors
+        if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+            console.log('🌐 Network error detected - backend may not be running');
+            return Promise.reject(error);
+        }
+        
+        // Check for specific CORS configuration error
+        if (error.response?.status === 500) {
+            const errorMessage = error.response?.data?.message || '';
+            if (errorMessage.includes('allowCredentials') && errorMessage.includes('allowedOrigins')) {
+                console.log('🌐 Backend CORS Configuration Error - Using fallback data');
+                // Return a mock response to prevent the error from propagating
+                return Promise.resolve({
+                    data: [],
+                    status: 200,
+                    statusText: 'OK',
+                    headers: {},
+                    config: error.config,
+                    request: error.request
+                });
+            }
+        }
+        
+        return Promise.reject(error);
+    }
+);
 
 export async function apiFetch(url: string, { method = "GET", body, token }: { method?: string; body?: any; token?: string }) {
   const headers: Record<string, string> = {
@@ -29,3 +91,120 @@ export async function apiFetch(url: string, { method = "GET", body, token }: { m
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// Medical Visit Request Types
+export interface MedicalVisitRequest {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  employeeDepartment: string;
+  motif: string;
+  dateSouhaitee: string;
+  heureSouhaitee: string;
+  status: 'PENDING' | 'PROPOSED' | 'CONFIRMED' | 'CANCELLED' | 'REJECTED';
+  proposedDate?: string;
+  proposedTime?: string;
+  confirmedDate?: string;
+  confirmedTime?: string;
+  notes?: string;
+  assignedNurseId?: number;
+  assignedNurseName?: string;
+  assignedDoctorId?: number;
+  assignedDoctorName?: string;
+  previousProposals?: MedicalVisitProposal[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicalVisitProposal {
+  id: number;
+  proposedDate: string;
+  proposedTime: string;
+  proposedBy: string;
+  reason?: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  proposedAt: string;
+}
+
+export interface CreateMedicalVisitRequestData {
+  motif: string;
+  dateSouhaitee: string;
+  heureSouhaitee: string;
+  notes?: string;
+}
+
+export interface ProposeSlotData {
+  proposedDate: string;
+  proposedTime: string;
+  reason?: string;
+  proposedBy: string;
+}
+
+export interface ConfirmRequestData {
+  confirmedDate: string;
+  confirmedTime: string;
+  notes?: string;
+}
+
+// Medical Visit Request API Functions
+export const medicalVisitAPI = {
+  // Create a new medical visit request
+  createRequest: (data: CreateMedicalVisitRequestData, employeeId: number) => 
+    api.post<MedicalVisitRequest>('/api/v1/medical-visits', data, { params: { employeeId } }),
+
+  // Get a specific request by ID
+  getRequestById: (requestId: number) => 
+    api.get<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}`),
+
+  // Get all requests for a specific employee
+  getEmployeeRequests: (employeeId: number) => 
+    api.get<MedicalVisitRequest[]>(`/api/v1/medical-visits/employee/${employeeId}`),
+
+  // Check for active requests for an employee
+  checkActiveRequests: (employeeId: number) => 
+    api.get<{hasActiveRequests: boolean, activeRequests: MedicalVisitRequest[]}>(`/api/v1/medical-visits/employee/${employeeId}/active`),
+
+  // Reset all requests for an employee (development/testing)
+  resetEmployeeRequests: (employeeId: number) => 
+    api.delete<{message: string}>(`/api/v1/medical-visits/employee/${employeeId}/reset`),
+
+  // Get all requests (no status filter)
+  getAllRequests: () => 
+    api.get<MedicalVisitRequest[]>('/api/v1/medical-visits'),
+
+  // Get all pending requests
+  getPendingRequests: () => 
+    api.get<MedicalVisitRequest[]>('/api/v1/medical-visits/pending'),
+
+  // Get requests by status
+  getRequestsByStatus: (status: string) => 
+    api.get<MedicalVisitRequest[]>(`/api/v1/medical-visits/status/${status}`),
+
+  // Propose a new slot for a request
+  proposeSlot: (requestId: number, data: ProposeSlotData) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/propose`, data),
+
+  // Confirm a request
+  confirmRequest: (requestId: number, data: ConfirmRequestData) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/confirm`, data),
+
+  // Reject a proposal
+  rejectProposal: (requestId: number, reason: string) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/reject`, { reason }),
+
+  // Cancel a request
+  cancelRequest: (requestId: number, reason: string) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/cancel`, { reason }),
+
+  // Assign medical staff to a request
+  assignMedicalStaff: (requestId: number, nurseId?: number, doctorId?: number) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/assign`, { nurseId, doctorId }),
+
+  // Get requests for medical staff
+  getRequestsByMedicalStaff: (nurseId?: number, doctorId?: number) => 
+    api.get<MedicalVisitRequest[]>('/api/v1/medical-visits/medical-staff', { params: { nurseId, doctorId } }),
+
+  // Get request statistics
+  getRequestCounts: () => 
+    api.get<Record<string, number>>('/api/v1/medical-visits/stats/count'),
+};

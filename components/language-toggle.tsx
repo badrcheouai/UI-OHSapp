@@ -42,6 +42,15 @@ const translations: {
     "Confirmer le mot de passe": "Confirmer le mot de passe",
     "Les mots de passe ne correspondent pas.": "Les mots de passe ne correspondent pas.",
     "Mot de passe changé avec succès!": "Mot de passe changé avec succès!",
+    "Demande de Visite Médicale": "Demande de Visite Médicale",
+    "Gérer les demandes de visites médicales": "Gérer les demandes de visites médicales",
+    "Demander une visite médicale": "Demander une visite médicale",
+    "Actions Rapides": "Actions Rapides",
+    "Vos responsabilités": "Vos responsabilités",
+    "Services disponibles": "Services disponibles",
+    "Soins infirmiers et premiers secours en entreprise": "Soins infirmiers et premiers secours en entreprise",
+    "Surveillance de l'état de santé des salariés": "Surveillance de l'état de santé des salariés",
+    "Gestion des traitements et suivi médical": "Gestion des traitements et suivi médical",
   },
   en: {
     "Bienvenue sur votre espace Salarié": "Welcome to your Employee space",
@@ -77,6 +86,15 @@ const translations: {
     "Confirmer le mot de passe": "Confirm password",
     "Les mots de passe ne correspondent pas.": "Passwords do not match.",
     "Mot de passe changé avec succès!": "Password changed successfully!",
+    "Demande de Visite Médicale": "Medical Visit Request",
+    "Gérer les demandes de visites médicales": "Manage medical visit requests",
+    "Demander une visite médicale": "Request a medical visit",
+    "Actions Rapides": "Quick Actions",
+    "Vos responsabilités": "Your responsibilities",
+    "Services disponibles": "Available services",
+    "Soins infirmiers et premiers secours en entreprise": "Nursing care and first aid in the workplace",
+    "Surveillance de l'état de santé des salariés": "Monitoring employee health status",
+    "Gestion des traitements et suivi médical": "Treatment management and medical follow-up",
   },
 }
 
@@ -109,7 +127,7 @@ export function LanguageToggle() {
       variant="ghost"
       size="sm"
       onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-      className="h-8 px-2 text-sm font-medium"
+      className="h-8 px-2 text-sm font-medium text-foreground dark:text-white"
     >
       <Globe className="h-4 w-4 mr-1" />
       {language === "en" ? "FR" : "EN"}

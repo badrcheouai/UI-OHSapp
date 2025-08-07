@@ -2,25 +2,51 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 import { LoadingSpinner } from "@/components/loading-spinner"
-import Link from "next/link"
 
 export default function HomePage() {
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push("/login")
-    }, 100)
+    if (!isLoading) {
+      if (!user) {
+        router.push("/login")
+      } else {
+        // Redirect based on user role
+        const roles = user.roles || []
 
-    return () => clearTimeout(timer)
-  }, [router])
+        if (roles.includes("ADMIN")) {
+          router.push("/dashboard-admin")
+        } else if (roles.includes("MEDECIN_TRAVAIL")) {
+          router.push("/dashboard-medecin")
+        } else if (roles.includes("INFIRMIER_ST")) {
+          router.push("/dashboard-infirmier")
+        } else if (roles.includes("RESP_HSE")) {
+          router.push("/dashboard-hse")
+        } else if (roles.includes("RESP_RH")) {
+          router.push("/dashboard-rh")
+        } else if (roles.includes("SALARIE")) {
+          router.push("/dashboard-salarie")
+        } else {
+          router.push("/profile")
+        }
+      }
+    }
+  }, [user, isLoading, router])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <LoadingSpinner />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
-      <h1 className="text-4xl font-bold mb-4 ohse-text-burgundy">Bienvenue sur OSHapp</h1>
-      <p className="text-lg mb-8">La plateforme de gestion santé & sécurité au travail.</p>
-      <Link href="/login" className="ohse-btn-primary px-6 py-3 rounded-lg text-lg">Se connecter</Link>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <LoadingSpinner />
     </div>
   )
 }
