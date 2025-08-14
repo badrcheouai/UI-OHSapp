@@ -45,19 +45,40 @@ export default function DemandeVisiteMedicale() {
   const [hasActiveRequest, setHasActiveRequest] = useState(false)
   const [activeRequest, setActiveRequest] = useState<MedicalVisitRequest | null>(null)
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false)
+  const [activeTab, setActiveTab] = useState<"planifier"|"consulter">("planifier")
 
   // Helper function to get employee ID from user
-  const getEmployeeId = () => {
+  const getEmployeeId = async () => {
     // Debug: Log the current user information
     console.log("Current user:", user)
     console.log("Username:", user?.username)
     console.log("Email:", user?.email)
     
-    // Map user emails to employee IDs based on the database
-    // This should match the actual employee IDs in your database
+    try {
+      // Try to get employee ID from backend first
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'}/api/v1/medical-visits/current-user/employee`, {
+        headers: {
+          'Authorization': `Bearer ${JSON.parse(localStorage.getItem('oshapp_tokens') || '{}').access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Backend employee data:", data)
+        if (data.employeeId) {
+          console.log("Found employee ID from backend:", data.employeeId)
+          return data.employeeId
+        }
+      }
+    } catch (error) {
+      console.log("Could not get employee ID from backend, using fallback mapping")
+    }
+    
+    // Fallback to email mapping if backend call fails
     const emailToEmployeeId: { [key: string]: number } = {
-      'battlehuma1@gmail.com': 7,  // Badr Med - trying different ID since 1 seems to be admin
-      'admin@example.com': 1,      // Admin - moved to ID 1
+      'battlehuma1@gmail.com': 1,  // Try ID 1 first
+      'admin@example.com': 1,      // Admin
       'rh@example.com': 2,         // RH
       'infirmier@example.com': 3,  // Infirmier
       'medecin@example.com': 4,    // Medecin
@@ -67,12 +88,12 @@ export default function DemandeVisiteMedicale() {
     
     // Try to get employee ID from email first
     if (user?.email && emailToEmployeeId[user.email]) {
-      console.log("Found employee ID from email:", emailToEmployeeId[user.email])
+      console.log("Found employee ID from email mapping:", emailToEmployeeId[user.email])
       return emailToEmployeeId[user.email]
     }
     
     // Fallback to username mapping
-    if (user?.username === 'badrmed') return 7  // Updated to match actual username
+    if (user?.username === 'badrmed') return 1  // Try ID 1 for badrmed
     if (user?.username === 'admin') return 1
     
     // Default fallback - this might be wrong!
@@ -83,7 +104,7 @@ export default function DemandeVisiteMedicale() {
   // Reset function for development testing
   const handleResetRequest = async () => {
     try {
-      const employeeId = getEmployeeId()
+      const employeeId = await getEmployeeId()
       
       // Call the API to delete all requests for this employee
       await medicalVisitAPI.resetEmployeeRequests(employeeId)
@@ -154,7 +175,7 @@ export default function DemandeVisiteMedicale() {
       
       setLoading(true)
       try {
-        const employeeId = getEmployeeId()
+        const employeeId = await getEmployeeId()
         
         // Check for active requests first
         try {
@@ -234,13 +255,31 @@ export default function DemandeVisiteMedicale() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
       
-      const healthCheck = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'}/api/v1/medical-visits`, {
+      // Get the current user's token for authentication
+      const stored = localStorage.getItem("oshapp_tokens");
+      const headers: Record<string, string> = {};
+      
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.access_token) {
+            headers['Authorization'] = `Bearer ${parsed.access_token}`;
+          }
+        } catch (error) {
+          console.log("Error parsing tokens for health check")
+        }
+      }
+      
+      const healthCheck = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'}/api/v1/medical-visits/current-user/employee`, {
         method: 'GET',
+        headers,
         signal: controller.signal
       })
       
       clearTimeout(timeoutId)
-      backendAvailable = healthCheck.status !== 404 // If we get a 404, backend is running but endpoint doesn't exist
+      // Consider backend available if we get a 200 (success) or 401 (unauthorized but authenticated)
+      // 401 means the backend is running but the user doesn't have permission for this specific endpoint
+      backendAvailable = healthCheck.status === 200 || healthCheck.status === 401
     } catch (error) {
       console.log("Backend health check failed, using demo mode")
       backendAvailable = false
@@ -272,13 +311,12 @@ export default function DemandeVisiteMedicale() {
     }
 
     try {
-      const employeeId = getEmployeeId()
+      const employeeId = await getEmployeeId()
 
       const requestData: CreateMedicalVisitRequestData = {
         motif: formData.motif,
         dateSouhaitee: formData.dateSouhaitee.toISOString().split('T')[0], // Format YYYY-MM-DD
         heureSouhaitee: formData.heureSouhaitee,
-        urgent: false, // This field is removed from formData, so it's always false
         notes: formData.notes || undefined,
       }
       
@@ -518,8 +556,44 @@ export default function DemandeVisiteMedicale() {
 
         {step === 1 ? (
           <div className="space-y-6">
-            {/* Active Request Warning */}
-            {hasActiveRequest && activeRequest && (
+            {/* Enhanced Tab Navigation */}
+            <div className="flex justify-center mb-6">
+              <div className="flex gap-3 p-1 bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg">
+                <button 
+                  onClick={() => setActiveTab("planifier")}
+                  className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                    activeTab === "planifier" 
+                      ? "text-white" 
+                      : "border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                  style={activeTab === "planifier" ? {
+                    background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                    boxShadow: `0 4px 6px -2px ${getThemeColor(500)}40`
+                  } : {}}
+                >
+                  Planifier (Spontanée)
+                </button>
+                <button 
+                  onClick={() => setActiveTab("consulter")}
+                  className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                    activeTab === "consulter" 
+                      ? "text-white" 
+                      : "border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                  style={activeTab === "consulter" ? {
+                    background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                    boxShadow: `0 4px 6px -2px ${getThemeColor(500)}40`
+                  } : {}}
+                >
+                  Consulter mes visites
+                </button>
+              </div>
+            </div>
+            {/* Planifier Tab Content */}
+            {activeTab === "planifier" && (
+              <>
+                {/* Active Request Warning */}
+                {hasActiveRequest && activeRequest && (
               <Card 
                 className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
                 style={{
@@ -544,7 +618,7 @@ export default function DemandeVisiteMedicale() {
                           <Badge 
                             variant="outline" 
                             className={`border-2 ${
-                              activeRequest.status === "PENDING" ? "border-yellow-500 text-yellow-700 dark:text-yellow-400" :
+                              activeRequest.status === "PENDING" ? "border-slate-500 text-slate-700 dark:text-slate-400" :
                               activeRequest.status === "PROPOSED" ? "border-orange-500 text-orange-700 dark:text-orange-400" :
                               "border-green-500 text-green-700 dark:text-green-400"
                             }`}
@@ -700,12 +774,12 @@ export default function DemandeVisiteMedicale() {
                          Décrivez brièvement la raison de votre demande de visite médicale
                        </p>
                      </div>
-                     <Textarea
+                      <Textarea
                        id="motif"
                        placeholder="Ex: Visite périodique, douleur au dos, contrôle post-accident, consultation préventive..."
                        value={formData.motif}
                        onChange={(e) => setFormData({ ...formData, motif: e.target.value })}
-                       className="min-h-[120px] resize-none bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500 focus:ring-2 focus:ring-offset-2 transition-all duration-200"
+                        className="min-h-[120px] resize-none bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:ring-offset-0 transition-all duration-200"
                        required
                      />
                    </div>
@@ -727,7 +801,7 @@ export default function DemandeVisiteMedicale() {
                             <Button
                               variant="outline"
                               className={cn(
-                                "w-full justify-start text-left font-normal bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-600",
+                                "w-full justify-start text-left font-normal bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-600 focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-500",
                                 !formData.dateSouhaitee && "text-slate-500 dark:text-slate-400"
                               )}
                             >
@@ -741,7 +815,7 @@ export default function DemandeVisiteMedicale() {
                               )}
                             </Button>
                           </PopoverTrigger>
-                                                   <PopoverContent className="w-auto p-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-lg rounded-lg z-[99999] calendar-popover" align="start">
+                          <PopoverContent className="w-auto p-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-lg rounded-lg z-[99999] calendar-popover" align="start">
                            <EnhancedCalendar
                              selectedDate={formData.dateSouhaitee}
                              onDateSelect={(date) => setFormData({ ...formData, dateSouhaitee: date })}
@@ -817,6 +891,127 @@ export default function DemandeVisiteMedicale() {
                 </form>
               </CardContent>
             </Card>
+              </>
+            )}
+
+            {/* Consulter Tab Content */}
+            {activeTab === "consulter" && (
+              <div className="space-y-6">
+                <Card className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200 dark:border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                      <Stethoscope className="h-5 w-5" style={{ color: getThemeColor(600) }} />
+                      Mes visites médicales
+                    </CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">
+                      Consultez l'historique de vos demandes de visites médicales
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {currentRequest ? (
+                      <div className="space-y-4">
+                        <Card className="border border-slate-200 dark:border-slate-700">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center justify-between text-base">
+                              <span>Demande actuelle</span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    currentRequest.status === 'CONFIRMED'
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                      : currentRequest.status === 'PROPOSED'
+                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                  }`}
+                                >
+                                  {currentRequest.status === 'CONFIRMED' ? 'Confirmé' : currentRequest.status === 'PROPOSED' ? 'Proposé' : 'En attente'}
+                                </span>
+                                {currentRequest.visitType && (
+                                  <span
+                                    className="px-3 py-1 rounded-full text-xs font-medium"
+                                    style={{
+                                      background: isDark ? `${getThemeColor(900)}30` : `${getThemeColor(100)}`,
+                                      color: isDark ? getThemeColor(300) : getThemeColor(800)
+                                    }}
+                                  >
+                                    {currentRequest.visitType === 'SPONTANEE' ? 'Spontanée' :
+                                     currentRequest.visitType === 'PERIODIQUE' ? 'Périodique' :
+                                     currentRequest.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
+                                     currentRequest.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
+                                     currentRequest.visitType === 'REPRISE' ? 'Reprise' : currentRequest.visitType}
+                                  </span>
+                                )}
+                              </div>
+                            </CardTitle>
+                            <CardDescription className="text-slate-600 dark:text-slate-400">Résumé et détails</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                <div className="text-xs text-slate-500 dark:text-slate-400">Motif</div>
+                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.motif}</div>
+                              </div>
+                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                <div className="text-xs text-slate-500 dark:text-slate-400">Type</div>
+                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.visitType || '-'}</div>
+                              </div>
+                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                <div className="text-xs text-slate-500 dark:text-slate-400">Date souhaitée</div>
+                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{format(new Date(currentRequest.dateSouhaitee), "PPP", { locale: fr })}</div>
+                              </div>
+                              {currentRequest.heureSouhaitee && (
+                                <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                  <div className="text-xs text-slate-500 dark:text-slate-400">Heure souhaitée</div>
+                                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.heureSouhaitee}</div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Expandable details */}
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-sm text-slate-700 dark:text-slate-300">Voir plus de détails</summary>
+                              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {currentRequest.notes && (
+                                  <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">Notes</div>
+                                    <div className="text-sm text-slate-900 dark:text-slate-100">{currentRequest.notes}</div>
+                                  </div>
+                                )}
+                                {currentRequest.modality && (
+                                  <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">Modalité</div>
+                                    <div className="text-sm text-slate-900 dark:text-slate-100">{currentRequest.modality}</div>
+                                  </div>
+                                )}
+                                {currentRequest.confirmedDate && (
+                                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                    <div className="text-xs text-green-700 dark:text-green-300">Date confirmée</div>
+                                    <div className="text-sm font-medium text-green-800 dark:text-green-200">{format(new Date(currentRequest.confirmedDate), 'PPP', { locale: fr })}</div>
+                                  </div>
+                                )}
+                                {currentRequest.confirmedTime && (
+                                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                    <div className="text-xs text-green-700 dark:text-green-300">Heure confirmée</div>
+                                    <div className="text-sm font-medium text-green-800 dark:text-green-200">{currentRequest.confirmedTime}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Stethoscope className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                        <p className="text-slate-600 dark:text-slate-400">
+                          Aucune demande de visite médicale trouvée
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         ) : (
           /* Success Step */

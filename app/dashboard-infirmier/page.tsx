@@ -318,9 +318,9 @@ export default function DashboardInfirmier() {
 
               {/* Statistics Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <Card className="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-700">
+                <Card className="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20 border-slate-200 dark:border-slate-700">
                   <CardContent className="p-2">
-                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{requestStats.pending}</div>
+                    <div className="text-2xl font-bold text-slate-600 dark:text-slate-400">{requestStats.pending}</div>
                     <div className="text-sm text-slate-600 dark:text-slate-400">En attente</div>
                   </CardContent>
                 </Card>

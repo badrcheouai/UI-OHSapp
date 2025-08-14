@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { 
   CalendarIcon, 
   Clock, 
@@ -43,6 +44,9 @@ import { cn } from "@/lib/utils"
 import { DashboardNavigation } from "@/components/dashboard-navigation"
 import { useToast } from "@/hooks/use-toast"
 import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { EmployeeInfoDialog } from "@/components/EmployeeInfoDialog"
+import { EmployeeSelect } from "@/components/EmployeeSelect"
 
 export default function DemandeVisiteMedicaleMedecin() {
   const { user, loading } = useAuth()
@@ -59,6 +63,11 @@ export default function DemandeVisiteMedicaleMedecin() {
   const [proposeDate, setProposeDate] = useState<Date | null>(null)
   const [proposeTime, setProposeTime] = useState("")
   const [proposeReason, setProposeReason] = useState("")
+  const [proposeModality, setProposeModality] = useState<'PRESENTIEL' | 'DISTANCE'>("PRESENTIEL")
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [confirmRequestId, setConfirmRequestId] = useState<number | null>(null)
+  const [confirmModality, setConfirmModality] = useState<'PRESENTIEL' | 'DISTANCE'>('PRESENTIEL')
+  const [confirmInstructions, setConfirmInstructions] = useState("")
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [requestCounts, setRequestCounts] = useState({
     ALL: 0,
@@ -68,6 +77,13 @@ export default function DemandeVisiteMedicaleMedecin() {
     CANCELLED: 0,
     REJECTED: 0
   });
+  // Planifier form state (doctor)
+  const [activeTab, setActiveTab] = useState<"planifier"|"consulter">("consulter")
+  const [planEmployeeId, setPlanEmployeeId] = useState<number | undefined>(undefined)
+  const [planVisitType, setPlanVisitType] = useState<'PERIODIQUE'|'SURVEILLANCE_PARTICULIERE'|'APPEL_MEDECIN'|'SPONTANEE'>('PERIODIQUE')
+  const [planNotes, setPlanNotes] = useState("")
+  const [planDueDate, setPlanDueDate] = useState<string>("")
+  const [showEmployeeInfo, setShowEmployeeInfo] = useState(false)
 
   // Helper function to get theme color
   const getThemeColor = (shade: keyof typeof themeColors.colors.primary) => {
@@ -109,6 +125,35 @@ export default function DemandeVisiteMedicaleMedecin() {
     }
   };
 
+  const handleCreateByDoctor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!planEmployeeId) {
+      toast({ title: "Salarié requis", description: "Veuillez saisir l'ID du salarié.", variant: "destructive" })
+      return
+    }
+    setIsProcessing(true)
+    try {
+      await medicalVisitAPI.createRequest({
+        motif: planNotes || `Demande ${planVisitType.toLowerCase()}`,
+        dateSouhaitee: new Date().toISOString().split('T')[0],
+        heureSouhaitee: "09:00",
+        notes: planNotes || undefined,
+        visitType: planVisitType,
+        dueDate: planDueDate || undefined,
+      }, planEmployeeId)
+      toast({ title: "Demande créée", description: "La demande a été créée avec succès." })
+      setPlanNotes("")
+      setPlanDueDate("")
+      await loadRequests();
+      await loadRequestCounts();
+      setActiveTab("consulter")
+    } catch (err) {
+      toast({ title: "Erreur", description: "Création impossible.", variant: "destructive" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login")
@@ -144,7 +189,7 @@ export default function DemandeVisiteMedicaleMedecin() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">En attente</Badge>
+        return <Badge variant="secondary" className="bg-slate-100 text-slate-800">En attente</Badge>
       case "PROPOSED":
         return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Proposé</Badge>
       case "CONFIRMED":
@@ -159,39 +204,45 @@ export default function DemandeVisiteMedicaleMedecin() {
   }
 
   const handleConfirm = async (requestId: number) => {
+    setConfirmRequestId(requestId)
+    setConfirmDialogOpen(true)
+  }
+
+  const submitConfirm = async () => {
+    if (confirmRequestId == null) return
     setIsProcessing(true)
     try {
-      const request = requests.find(r => r.id === requestId);
+      const request = requests.find(r => r.id === confirmRequestId);
       if (!request) return;
-      
-      await medicalVisitAPI.confirmRequest(requestId, {
-        confirmedDate: request.dateSouhaitee,
-        confirmedTime: request.heureSouhaitee,
-        notes: "Confirmé par le médecin"
+      const isProposed = request.status === 'PROPOSED'
+      await medicalVisitAPI.confirmRequest(confirmRequestId, {
+        confirmedDate: (isProposed ? request.proposedDate : request.dateSouhaitee) as unknown as string,
+        confirmedTime: (isProposed ? request.proposedTime : request.heureSouhaitee) as string,
+        notes: confirmInstructions,
+        modality: confirmModality,
       });
-      
-      // Reload requests to get updated data
       await loadRequests();
       await loadRequestCounts();
-      
+      setConfirmDialogOpen(false)
+      setConfirmInstructions("")
+      setConfirmRequestId(null)
       toast({
         title: "Demande confirmée",
-        description: "La demande de visite médicale a été confirmée avec succès.",
+        description: "Le rendez-vous a été confirmé et l'employé sera notifié.",
         variant: "default",
-      });
+      })
     } catch (error) {
-      console.error("Error confirming request:", error);
       toast({
         title: "Erreur",
-        description: "Impossible de confirmer la demande.",
+        description: "Une erreur est survenue lors de la confirmation.",
         variant: "destructive",
-      });
+      })
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handlePropose = async (requestId: number, newDate: Date, newTime: string, reason?: string) => {
+  const handlePropose = async (requestId: number, newDate: Date, newTime: string, reason?: string, modality?: 'PRESENTIEL'|'DISTANCE') => {
     setIsProcessing(true)
     try {
       if (!user) {
@@ -207,7 +258,8 @@ export default function DemandeVisiteMedicaleMedecin() {
         proposedDate: newDate.toISOString().split('T')[0],
         proposedTime: newTime,
         reason: reason || "Nouveau créneau proposé",
-        proposedBy: user?.username || "Médecin"
+        proposedBy: user?.username || "Médecin",
+        modality
       });
       
       // Reload requests to get updated data
@@ -273,15 +325,44 @@ export default function DemandeVisiteMedicaleMedecin() {
       <DashboardNavigation userRole={user.roles[0]} currentPage="demande-visite-medicale" />
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-              Gestion des demandes de visite médicale
+        {/* Header + Enhanced Tabs */}
+        <div className="mb-6 flex justify-between items-start">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+              Visites médicales
             </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Gérez les demandes de visite médicale des employés
-            </p>
+            <div className="flex justify-center">
+              <div className="flex gap-3 p-1 bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg">
+                <button 
+                  onClick={() => setActiveTab("planifier")}
+                  className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                    activeTab === "planifier" 
+                      ? "text-white" 
+                      : "border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                  style={activeTab === "planifier" ? {
+                    background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                    boxShadow: `0 4px 6px -2px ${getThemeColor(500)}40`
+                  } : {}}
+                >
+                  Planifier
+                </button>
+                <button 
+                  onClick={() => setActiveTab("consulter")}
+                  className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                    activeTab === "consulter" 
+                      ? "text-white" 
+                      : "border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                  style={activeTab === "consulter" ? {
+                    background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                    boxShadow: `0 4px 6px -2px ${getThemeColor(500)}40`
+                  } : {}}
+                >
+                  Consulter
+                </button>
+              </div>
+            </div>
           </div>
           <Button
             onClick={() => {
@@ -300,6 +381,72 @@ export default function DemandeVisiteMedicaleMedecin() {
           </Button>
         </div>
 
+        {/* Planifier */}
+        {activeTab === "planifier" && (
+          <Card className="mb-6 bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-slate-900 dark:text-slate-100">Planifier une visite</CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">Créer une demande pour un salarié (types autorisés: périodique, surveillance particulière, appel médecin, spontanée)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateByDoctor} className="grid gap-6 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <Label>Salarié</Label>
+                  <EmployeeSelect value={planEmployeeId} onChange={(id)=>setPlanEmployeeId(id)} />
+                  <div className="mt-2">
+                    <Button type="button" variant="outline" onClick={()=>setShowEmployeeInfo(true)} disabled={!planEmployeeId}>Afficher informations</Button>
+                  </div>
+                </div>
+                <div>
+                  <Label>Type de visite</Label>
+                  <select className="w-full border rounded px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" value={planVisitType} onChange={(e)=>setPlanVisitType(e.target.value as any)}>
+                    <option value="PERIODIQUE">Périodique</option>
+                    <option value="SURVEILLANCE_PARTICULIERE">Surveillance particulière</option>
+                    <option value="APPEL_MEDECIN">À l'appel du médecin</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Date souhaitée</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start", !planDueDate && 'text-slate-500') }>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {planDueDate ? planDueDate : 'Sélectionner la date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <EnhancedCalendar selectedDate={planDueDate ? new Date(planDueDate) : null} onDateSelect={(d)=>setPlanDueDate(d?.toISOString().split('T')[0] || '')} minDate={new Date()} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label>Heure souhaitée</Label>
+                    <EnhancedTimePicker selectedTime={proposeTime} onTimeSelect={(t)=>setProposeTime(t)} minTime="08:00" maxTime="18:00" interval={30} />
+                  </div>
+                  <div>
+                    <Label>Modalité</Label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <label className="flex items-center gap-2 text-sm"><input type="radio" name="moddoc" checked={proposeModality==='PRESENTIEL'} onChange={()=>setProposeModality('PRESENTIEL')} /> Présentiel</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="radio" name="moddoc" checked={proposeModality==='DISTANCE'} onChange={()=>setProposeModality('DISTANCE')} /> À distance</label>
+                    </div>
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Notes (optionnel)</Label>
+                  <Textarea value={planNotes} onChange={(e)=>setPlanNotes(e.target.value)} placeholder="Consignes ou remarques" className="text-slate-900 dark:text-slate-100 placeholder:text-slate-400" />
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit" disabled={isProcessing || !planEmployeeId || !planDueDate || !proposeTime} className="text-white" style={{background:`linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`}}>Créer la demande</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Consulter */}
+        {activeTab === "consulter" && (
+        <>
         {/* Filters and Search */}
         <Card 
           className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200 dark:border-slate-700 mb-6"
@@ -414,7 +561,7 @@ export default function DemandeVisiteMedicaleMedecin() {
                   Chargement des demandes...
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400">
-                  Veuillez patienter pendant le chargement des demandes de visite médicale.
+                  Veuillez patienter pendant le chargement des demandes de visite médicale spontanée.
                 </p>
               </CardContent>
             </Card>
@@ -433,7 +580,7 @@ export default function DemandeVisiteMedicaleMedecin() {
                 <p className="text-slate-600 dark:text-slate-400">
                   {searchTerm || filter !== "ALL" 
                     ? "Aucune demande ne correspond à vos critères de recherche."
-                    : "Aucune demande de visite médicale en attente."
+                    : "Aucune demande de visite médicale spontanée en attente."
                   }
                 </p>
               </CardContent>
@@ -587,42 +734,56 @@ export default function DemandeVisiteMedicaleMedecin() {
                       )}
 
                       {request.status === "PROPOSED" && (
-                        <>
-                          <Button
-                            onClick={() => handleConfirm(request.id)}
-                            disabled={isProcessing}
-                            className="w-full text-white hover:shadow-lg transition-all duration-300"
-                            style={{
-                              background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
-                              boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
-                            }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Confirmer la proposition
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              // Auto-select previous slot if available
-                              if (request.previousProposals && request.previousProposals.length > 0) {
-                                const latestProposal = request.previousProposals[request.previousProposals.length - 1];
-                                setProposeDate(new Date(latestProposal.proposedDate));
-                                setProposeTime(latestProposal.proposedTime);
-                              }
-                            }}
-                            className="w-full text-white transition-all duration-300"
-                            style={{
-                              background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
-                              boxShadow: `0 4px 12px -2px ${getThemeColor(500)}25`
-                            }}
-                          >
-                            <Clock className="h-4 w-4 mr-2" />
-                            {request.previousProposals && request.previousProposals.length > 0 
-                              ? `Proposer un ${request.previousProposals.length + 1}ème créneau`
-                              : "Proposer un autre créneau"
-                            }
-                          </Button>
-                        </>
+                        (() => {
+                          const latest = request.previousProposals && request.previousProposals.length > 0
+                            ? request.previousProposals[request.previousProposals.length - 1]
+                            : undefined;
+                          const ownPending = !!(latest && latest.status === 'PENDING' && latest.proposedBy && user?.username && latest.proposedBy.toLowerCase() === user.username.toLowerCase());
+                          if (ownPending) {
+                            return (
+                              <div className="w-full text-center px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                Proposé par vous
+                              </div>
+                            );
+                          }
+                          return (
+                            <>
+                              <Button
+                                onClick={() => handleConfirm(request.id)}
+                                disabled={isProcessing}
+                                className="w-full text-white hover:shadow-lg transition-all duration-300"
+                                style={{
+                                  background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                                  boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
+                                }}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Confirmer la proposition
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  if (request.previousProposals && request.previousProposals.length > 0) {
+                                    const latestProposal = request.previousProposals[request.previousProposals.length - 1];
+                                    setProposeDate(new Date(latestProposal.proposedDate));
+                                    setProposeTime(latestProposal.proposedTime);
+                                  }
+                                }}
+                                className="w-full text-white transition-all duration-300"
+                                style={{
+                                  background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                                  boxShadow: `0 4px 12px -2px ${getThemeColor(500)}25`
+                                }}
+                              >
+                                <Clock className="h-4 w-4 mr-2" />
+                                {request.previousProposals && request.previousProposals.length > 0 
+                                  ? `Proposer un ${request.previousProposals.length + 1}ème créneau`
+                                  : "Proposer un autre créneau"
+                                }
+                              </Button>
+                            </>
+                          );
+                        })()
                       )}
 
                                                 {request.status === "CONFIRMED" && (
@@ -640,7 +801,70 @@ export default function DemandeVisiteMedicaleMedecin() {
             ))
           )}
         </div>
+        </>
+        )}
       </div>
+
+      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={planEmployeeId} />
+
+      {/* Confirm Dialog */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-0 shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
+              Confirmer le rendez-vous
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
+              Choisissez la modalité et ajoutez des consignes (optionnel).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div>
+              <Label className="mb-2 block text-slate-900 dark:text-slate-100 font-medium">Modalité</Label>
+              <RadioGroup value={confirmModality} onValueChange={(v) => setConfirmModality(v as 'PRESENTIEL' | 'DISTANCE')} className="flex gap-6">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="mod-pres-doc" value="PRESENTIEL" />
+                  <Label htmlFor="mod-pres-doc" className="text-slate-900 dark:text-slate-100">Présentiel</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="mod-dist-doc" value="DISTANCE" />
+                  <Label htmlFor="mod-dist-doc" className="text-slate-900 dark:text-slate-100">À distance</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            <div>
+              <Label htmlFor="confirm-instr-doc" className="text-slate-900 dark:text-slate-100 font-medium">Consignes (optionnel)</Label>
+              <Textarea 
+                id="confirm-instr-doc" 
+                placeholder="Ex: Venez à jeun, ne pas boire ni manger, apporter vos documents..." 
+                value={confirmInstructions} 
+                onChange={(e) => setConfirmInstructions(e.target.value)}
+                className="min-h-[80px] resize-none bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setConfirmDialogOpen(false)}
+              className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={submitConfirm} 
+              disabled={isProcessing}
+              className="text-white transition-all duration-300"
+              style={{
+                background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
+              }}
+            >
+              {isProcessing ? 'Confirmation...' : 'Confirmer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Propose New Slot Dialog */}
       <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
@@ -701,18 +925,31 @@ export default function DemandeVisiteMedicaleMedecin() {
               />
             </div>
 
-            {/* Reason (Optional) */}
+            {/* Consignes + Modalité */}
             <div className="space-y-2">
               <Label htmlFor="propose-reason" className="text-slate-900 dark:text-slate-100 font-medium">
-                Raison du changement (optionnel)
+                Consignes pour l'employé (optionnel)
               </Label>
               <Textarea
                 id="propose-reason"
-                placeholder="Ex: Créneau plus adapté, disponibilité du médecin, urgence..."
+                placeholder="Ex: Venez à jeun, apporter vos analyses, etc."
                 value={proposeReason}
                 onChange={(e) => setProposeReason(e.target.value)}
                 className="min-h-[80px] resize-none bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500"
               />
+              <div className="pt-2">
+                <Label className="text-slate-900 dark:text-slate-100 font-medium">Modalité du rendez-vous</Label>
+                <RadioGroup className="flex gap-6 mt-2" value={proposeModality} onValueChange={(v)=>setProposeModality(v as 'PRESENTIEL'|'DISTANCE')}>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem id="prop-pres-doc" value="PRESENTIEL" />
+                    <Label htmlFor="prop-pres-doc">Présentiel</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem id="prop-dist-doc" value="DISTANCE" />
+                    <Label htmlFor="prop-dist-doc">À distance</Label>
+                  </div>
+                </RadioGroup>
+              </div>
             </div>
           </div>
 
@@ -727,11 +964,12 @@ export default function DemandeVisiteMedicaleMedecin() {
             <Button 
               onClick={() => {
                 if (selectedRequest && proposeDate && proposeTime) {
-                  handlePropose(selectedRequest.id, proposeDate, proposeTime, proposeReason)
+                  handlePropose(selectedRequest.id, proposeDate, proposeTime, proposeReason, proposeModality)
                   setSelectedRequest(null)
                   setProposeDate(null)
                   setProposeTime("")
                   setProposeReason("")
+                  setProposeModality('PRESENTIEL')
                 }
               }}
               disabled={!proposeDate || !proposeTime || isProcessing}

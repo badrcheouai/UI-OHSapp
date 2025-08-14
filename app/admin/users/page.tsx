@@ -507,6 +507,8 @@ export default function AdminUsersPage() {
     return roleConfig
   }
 
+  // Managers edit removed here per new dedicated page at /admin/employees-managers
+
   // Handle role selection for multiple roles
   const handleRoleSelection = (selectedRoles: string[], isNewUser: boolean = true) => {
     if (isNewUser) {
@@ -567,6 +569,17 @@ export default function AdminUsersPage() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Actualiser
+          </Button>
+          
+          <Button 
+            asChild
+            variant="outline" 
+            className="theme-button-secondary"
+          >
+            <a href="/admin/employees-managers">
+              <Shield className="h-4 w-4 mr-2" />
+              Gérer N+1/N+2
+            </a>
           </Button>
           
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -1017,6 +1030,11 @@ export default function AdminUsersPage() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+
+                            {/* Managers moved to dedicated page */}
+                            <Button asChild variant="ghost" size="sm" className="h-8 px-2" title="Définir N+1 / N+2">
+                              <a href="/admin/employees-managers"><Shield className="h-4 w-4" /></a>
+                            </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1136,6 +1154,8 @@ export default function AdminUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Managers dialog removed; use /admin/employees-managers */}
     </div>
   )
 }

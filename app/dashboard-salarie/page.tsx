@@ -84,17 +84,37 @@ export default function DashboardSalarie() {
   const getThemeColor = (shade: keyof typeof themeColors.colors.primary) => themeColors.colors.primary[shade]
 
   // Helper function to get employee ID from user
-  const getEmployeeId = () => {
+  const getEmployeeId = async () => {
     // Debug: Log the current user information
     console.log("Current user:", user)
     console.log("Username:", user?.username)
     console.log("Email:", user?.email)
     
-    // Map user emails to employee IDs based on the database
-    // This should match the actual employee IDs in your database
+    try {
+      // Try to get employee ID from backend first
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'}/api/v1/medical-visits/current-user/employee`, {
+        headers: {
+          'Authorization': `Bearer ${JSON.parse(localStorage.getItem('oshapp_tokens') || '{}').access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Backend employee data:", data)
+        if (data.employeeId) {
+          console.log("Found employee ID from backend:", data.employeeId)
+          return data.employeeId
+        }
+      }
+    } catch (error) {
+      console.log("Could not get employee ID from backend, using fallback mapping")
+    }
+    
+    // Fallback to email mapping if backend call fails
     const emailToEmployeeId: { [key: string]: number } = {
-      'battlehuma1@gmail.com': 7,  // Badr Med - trying different ID since 1 seems to be admin
-      'admin@example.com': 1,      // Admin - moved to ID 1
+      'battlehuma1@gmail.com': 1,  // Try ID 1 first
+      'admin@example.com': 1,      // Admin
       'rh@example.com': 2,         // RH
       'infirmier@example.com': 3,  // Infirmier
       'medecin@example.com': 4,    // Medecin
@@ -104,12 +124,12 @@ export default function DashboardSalarie() {
     
     // Try to get employee ID from email first
     if (user?.email && emailToEmployeeId[user.email]) {
-      console.log("Found employee ID from email:", emailToEmployeeId[user.email])
+      console.log("Found employee ID from email mapping:", emailToEmployeeId[user.email])
       return emailToEmployeeId[user.email]
     }
     
     // Fallback to username mapping
-    if (user?.username === 'badrmed') return 7  // Updated to match actual username
+    if (user?.username === 'badrmed') return 1  // Try ID 1 for badrmed
     if (user?.username === 'admin') return 1
     
     // Default fallback - this might be wrong!
@@ -138,7 +158,7 @@ export default function DashboardSalarie() {
     
     setLoadingRequest(true)
     try {
-      const employeeId = getEmployeeId()
+      const employeeId = await getEmployeeId()
       const response = await medicalVisitAPI.getEmployeeRequests(employeeId)
       
       // Get all requests
@@ -398,7 +418,7 @@ export default function DashboardSalarie() {
                             <Badge 
                               variant="outline" 
                               className={`border-2 ${
-                                request.status === "PENDING" ? "border-yellow-500 text-yellow-700 dark:text-yellow-400" :
+                                request.status === "PENDING" ? "border-slate-500 text-slate-700 dark:text-slate-400" :
                                 request.status === "PROPOSED" ? "border-orange-500 text-orange-700 dark:text-orange-400" :
                                 request.status === "CONFIRMED" ? "border-green-500 text-green-700 dark:text-green-400" :
                                 "border-gray-500 text-gray-700 dark:text-gray-400"
@@ -406,6 +426,15 @@ export default function DashboardSalarie() {
                             >
                               {request.status}
                             </Badge>
+                            {/* Visit type badge */}
+                            {request.visitType && (
+                              <span className="ml-1">
+                                {/* lightweight inline badge to avoid heavy imports */}
+                                <span className="text-xs px-2 py-0.5 border rounded-md text-slate-700 dark:text-slate-300 border-slate-300">
+                                  {request.visitType}
+                                </span>
+                              </span>
+                            )}
                           </div>
                           <span className="text-sm text-slate-500">
                             {format(new Date(request.createdAt), "dd/MM/yyyy", { locale: fr })}
@@ -425,6 +454,12 @@ export default function DashboardSalarie() {
                               <Clock className="h-4 w-4" />
                               {request.heureSouhaitee}
                             </span>
+                            {request.dueDate && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4" />
+                                Échéance {format(new Date(request.dueDate), "dd/MM/yyyy", { locale: fr })}
+                              </span>
+                            )}
                           </div>
                           {request.notes && (
                             <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -474,7 +509,7 @@ export default function DashboardSalarie() {
                   >
                     <Stethoscope className="h-4 w-4 text-white" />
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Détails de la demande</h2>
+                  <h2 className="text-lg font-bold text-orange-600 dark:text-slate-100">Détails de la demande</h2>
                 </div>
                 <MedicalVisitStatus 
                   request={currentRequest} 
@@ -526,7 +561,7 @@ export default function DashboardSalarie() {
                   }}
                   onResetRequest={async () => {
                     try {
-                      const employeeId = getEmployeeId()
+                      const employeeId = await getEmployeeId()
                       
                       // Call the API to delete all requests for this employee
                       await medicalVisitAPI.resetEmployeeRequests(employeeId)
@@ -562,6 +597,7 @@ export default function DashboardSalarie() {
                     }
                   }}
                   showCancelButton={false}
+                  showHistory={false}
                 />
               </div>
             )}
