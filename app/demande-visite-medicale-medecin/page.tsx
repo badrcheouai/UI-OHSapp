@@ -80,6 +80,7 @@ export default function DemandeVisiteMedicaleMedecin() {
   // Planifier form state (doctor)
   const [activeTab, setActiveTab] = useState<"planifier"|"consulter">("consulter")
   const [planEmployeeId, setPlanEmployeeId] = useState<number | undefined>(undefined)
+  const [selectedEmployee, setSelectedEmployee] = useState<any | undefined>(undefined)
   const [planVisitType, setPlanVisitType] = useState<'PERIODIQUE'|'SURVEILLANCE_PARTICULIERE'|'APPEL_MEDECIN'|'SPONTANEE'>('PERIODIQUE')
   const [planNotes, setPlanNotes] = useState("")
   const [planDueDate, setPlanDueDate] = useState<string>("")
@@ -127,27 +128,50 @@ export default function DemandeVisiteMedicaleMedecin() {
 
   const handleCreateByDoctor = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    
+    // Validate required fields
     if (!planEmployeeId) {
-      toast({ title: "Salarié requis", description: "Veuillez saisir l'ID du salarié.", variant: "destructive" })
+      toast({ title: "Salarié requis", description: "Veuillez sélectionner un salarié.", variant: "destructive" })
       return
     }
+    
+    if (!planDueDate) {
+      toast({ title: "Date requise", description: "Veuillez sélectionner une date.", variant: "destructive" })
+      return
+    }
+    
     setIsProcessing(true)
     try {
+      console.log('Creating request with data:', {
+        employeeId: planEmployeeId,
+        visitType: planVisitType,
+        dueDate: planDueDate,
+        notes: planNotes
+      })
+      
       await medicalVisitAPI.createRequest({
         motif: planNotes || `Demande ${planVisitType.toLowerCase()}`,
-        dateSouhaitee: new Date().toISOString().split('T')[0],
+        dateSouhaitee: planDueDate,
         heureSouhaitee: "09:00",
         notes: planNotes || undefined,
         visitType: planVisitType,
-        dueDate: planDueDate || undefined,
+        dueDate: planDueDate,
       }, planEmployeeId)
+      
       toast({ title: "Demande créée", description: "La demande a été créée avec succès." })
+      
+      // Reset form
       setPlanNotes("")
       setPlanDueDate("")
+      setSelectedEmployee(undefined)
+      setPlanEmployeeId(undefined)
+      
       await loadRequests();
       await loadRequestCounts();
       setActiveTab("consulter")
     } catch (err) {
+      console.error('Error creating request:', err)
       toast({ title: "Erreur", description: "Création impossible.", variant: "destructive" })
     } finally {
       setIsProcessing(false)
@@ -392,7 +416,7 @@ export default function DemandeVisiteMedicaleMedecin() {
               <form onSubmit={handleCreateByDoctor} className="grid gap-6 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <Label>Salarié</Label>
-                  <EmployeeSelect value={planEmployeeId} onChange={(id)=>setPlanEmployeeId(id)} />
+                  <EmployeeSelect value={selectedEmployee} onValueChange={(emp)=>{ setSelectedEmployee(emp); setPlanEmployeeId(emp?.id) }} />
                   <div className="mt-2">
                     <Button type="button" variant="outline" onClick={()=>setShowEmployeeInfo(true)} disabled={!planEmployeeId}>Afficher informations</Button>
                   </div>
@@ -805,7 +829,7 @@ export default function DemandeVisiteMedicaleMedecin() {
         )}
       </div>
 
-      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={planEmployeeId} />
+      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={planEmployeeId || 0} />
 
       {/* Confirm Dialog */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>

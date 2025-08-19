@@ -20,11 +20,11 @@ import { useToast } from "@/hooks/use-toast"
 import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { Calendar, Stethoscope, Filter, Search, User } from "lucide-react"
+import { Calendar, Stethoscope, Filter, Search, User, Mail, RefreshCw, Hourglass } from "lucide-react"
 import { EnhancedCalendar } from "@/components/enhanced-calendar"
 
 export default function RhVisitesPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, logout } = useAuth()
   const { themeColors } = useTheme()
   const router = useRouter()
   const { toast } = useToast()
@@ -42,6 +42,7 @@ export default function RhVisitesPage() {
   const [repriseDialogOpen, setRepriseDialogOpen] = useState(false)
   const [repriseDetails, setRepriseDetails] = useState("")
   const [showEmployeeInfo, setShowEmployeeInfo] = useState(false)
+  const [selectedEmployeeForInfo, setSelectedEmployeeForInfo] = useState<number | null>(null)
 
   const [requests, setRequests] = useState<MedicalVisitRequest[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
@@ -52,7 +53,11 @@ export default function RhVisitesPage() {
   const [loadingList, setLoadingList] = useState(false)
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login")
+    // Only redirect if not loading, no user, and not in logout process
+    if (!loading && !user) {
+      console.log("🔄 RH Visites: User not authenticated, redirecting to login")
+      router.replace("/login")
+    }
   }, [user, loading, router])
 
   const isRh = user?.roles?.includes("RH") || user?.roles?.includes("RESP_RH") || user?.roles?.includes("ADMIN")
@@ -333,7 +338,7 @@ export default function RhVisitesPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input 
-                      className="pl-9 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md" 
+                      className="pl-9 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-lg" 
                       placeholder="Rechercher..." 
                       value={search} 
                       onChange={(e)=>setSearch(e.target.value)} 
@@ -343,7 +348,7 @@ export default function RhVisitesPage() {
                 <div className="space-y-2">
                   <Label className="text-slate-700 dark:text-slate-300 font-medium">Statut</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md">
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-lg">
                       <SelectValue placeholder="Statut" />
                     </SelectTrigger>
                     <SelectContent>
@@ -359,7 +364,7 @@ export default function RhVisitesPage() {
                 <div className="space-y-2">
                   <Label className="text-slate-700 dark:text-slate-300 font-medium">Type</Label>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md">
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-lg">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -378,7 +383,7 @@ export default function RhVisitesPage() {
                     placeholder="Département" 
                     value={deptFilter} 
                     onChange={(e)=>setDeptFilter(e.target.value)} 
-                    className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md" 
+                    className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-lg" 
                   />
                 </div>
               </CardContent>
@@ -386,72 +391,336 @@ export default function RhVisitesPage() {
 
             <div className="space-y-4">
               {loadingList ? (
-                <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-lg">
-                  <CardContent className="p-8 flex items-center justify-center">
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <RefreshCw className="h-6 w-6 animate-spin" />
-                      <span className="text-lg">Chargement…</span>
+                <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-xl border-0">
+                  <CardContent className="p-12 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4 text-slate-500">
+                      <div 
+                        className="animate-spin rounded-full h-12 w-12 border-b-2"
+                        style={{ borderColor: themeColors.colors.primary[500] }}
+                      ></div>
+                      <span className="text-lg font-medium">Chargement des demandes...</span>
                     </div>
                   </CardContent>
                 </Card>
               ) : filtered.length === 0 ? (
-                <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-lg">
-                  <CardContent className="p-8 text-center">
-                    <div className="text-slate-500 text-lg">Aucune demande trouvée</div>
-                    <p className="text-slate-400 mt-2">Essayez de modifier vos critères de recherche</p>
+                <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-xl border-0">
+                  <CardContent className="p-12 text-center">
+                    <Stethoscope className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                      Aucune demande trouvée
+                    </h3>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      {search || statusFilter !== "ALL" || typeFilter !== "ALL" || deptFilter
+                        ? "Aucune demande ne correspond à vos critères de recherche."
+                        : "Aucune demande de visite médicale enregistrée."
+                      }
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
                 filtered.map(r => (
-                  <Card key={r.id} className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 border-0">
-                    <CardContent className="p-6 flex items-center justify-between">
-                      <div className="space-y-2">
+                  <Card 
+                    key={r.id} 
+                    className="bg-white dark:bg-slate-800 border-0 shadow-lg hover:shadow-2xl transition-all duration-500 rounded-xl overflow-hidden group cursor-pointer"
+                    style={{
+                      boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.1), 0 3px 6px -2px rgba(0, 0, 0, 0.05)`
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        {/* Request Info */}
+                        <div className="flex-1 space-y-3">
+                          {/* Header with Employee Info and Status */}
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl cursor-pointer"
+                                style={{
+                                  background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[600]})`
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`
+                                  e.currentTarget.style.transform = 'scale(1.15) rotate(5deg)'
+                                  e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0,0,0,0.3)'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[600]})`
+                                  e.currentTarget.style.transform = 'scale(1) rotate(0deg)'
+                                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.2)'
+                                }}
+                              >
+                                <User className="h-5 w-5 text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
+                              </div>
+                              <div className="space-y-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
-                            <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 group-hover:text-slate-700 dark:group-hover:text-slate-200">
+                                    {r.employeeName}
+                                  </h3>
+                                  {/* Date next to name */}
+                                  <div 
+                                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-pointer"
+                                    style={{
+                                      background: `linear-gradient(135deg, #fef3c7, #fde68a)`,
+                                      color: '#92400e',
+                                      boxShadow: `0 4px 12px -4px #f59e0b30`
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fde68a, #fbbf24)'
+                                      e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
+                                      e.currentTarget.style.boxShadow = '0 6px 20px -4px #f59e0b50'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fef3c7, #fde68a)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                      e.currentTarget.style.boxShadow = '0 4px 12px -4px #f59e0b30'
+                                    }}
+                                  >
+                                    Demandé le {format(new Date(r.createdAt), 'dd/MM/yyyy', { locale: fr })}
+                                  </div>
+                                </div>
+                                {/* Email under the name */}
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-red-200/50 border cursor-pointer"
+                                    style={{
+                                      background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+                                      borderColor: '#fecaca',
+                                      color: '#dc2626',
+                                      boxShadow: '0 2px 8px -2px #fecaca40'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fee2e2, #fecaca)'
+                                      e.currentTarget.style.transform = 'translateY(-2px)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fef2f2, #fee2e2)'
+                                      e.currentTarget.style.transform = 'translateY(0)'
+                                    }}
+                                  >
+                                    <Mail className="h-3 w-3 transition-transform duration-300 hover:rotate-12" />
+                                    <span className="font-semibold">
+                                      {r.employeeEmail || `${r.employeeDepartment?.toLowerCase()}@ohse.com`}
+                                    </span>
+                                  </div>
+                                </div>
+                                {/* Visit Type with improved label design */}
+                                <div className="flex items-center gap-2">
+                                  <span 
+                                    className="px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wide transition-all duration-300"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
+                                      color: themeColors.colors.primary[700],
+                                      boxShadow: `0 2px 6px -2px ${themeColors.colors.primary[500]}15`
+                                    }}
+                                  >
+                                    Type de visite médicale :
+                                  </span>
+                                  {r.visitType && (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold shadow-md transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-blue-200/50 cursor-pointer"
+                                      style={{
+                                        background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`,
+                                        color: themeColors.colors.primary[800],
+                                        boxShadow: `0 4px 12px -4px ${themeColors.colors.primary[500]}30`
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[200]}, ${themeColors.colors.primary[300]})`
+                                        e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
+                                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                      }}
+                                    >
+                                      {r.visitType === 'SPONTANEE' ? 'Spontanée' :
+                                       r.visitType === 'PERIODIQUE' ? 'Périodique' :
+                                       r.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
+                                       r.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
+                                       r.visitType === 'REPRISE' ? 'Reprise' :
+                                       r.visitType === 'EMBAUCHE' ? 'Embauche' : r.visitType}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              {/* Status Badge */}
+                              <div className="relative">
+                                <span
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg border transition-all duration-300 hover:scale-110 hover:shadow-2xl cursor-pointer ${
+                                    r.status === 'CONFIRMED'
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-400 shadow-green-500/25'
+                                      : r.status === 'PROPOSED'
+                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-400 shadow-blue-500/25'
+                                        : r.status === 'PENDING'
+                                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-400 shadow-amber-500/25'
+                                          : r.status === 'CANCELLED' || r.status === 'REJECTED'
+                                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400 shadow-red-500/25'
+                                            : 'bg-gradient-to-r from-slate-500 to-slate-600 text-white border-slate-400 shadow-slate-500/25'
+                                  }`}
+                                  onMouseEnter={(e) => {
+                                    if (r.status === 'CONFIRMED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #059669, #047857)'
+                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
+                                    } else if (r.status === 'PROPOSED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #1d4ed8, #1e40af)'
+                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
+                                    } else if (r.status === 'PENDING') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #d97706, #b45309)'
+                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
+                                    } else if (r.status === 'CANCELLED' || r.status === 'REJECTED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #dc2626, #b91c1c)'
+                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
+                                    } else {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #475569, #334155)'
+                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (r.status === 'CONFIRMED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #10b981, #059669)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                    } else if (r.status === 'PROPOSED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #3b82f6, #1d4ed8)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                    } else if (r.status === 'PENDING') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #f59e0b, #d97706)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                    } else if (r.status === 'CANCELLED' || r.status === 'REJECTED') {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #ef4444, #dc2626)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                    } else {
+                                      e.currentTarget.style.background = 'linear-gradient(to right, #64748b, #475569)'
+                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                    }
+                                  }}
+                                >
+                                  {r.status === 'CONFIRMED' ? '✅ Confirmé' : 
+                                   r.status === 'PROPOSED' ? '🔄 Proposé' : 
+                                   r.status === 'PENDING' ? (
+                                     <>
+                                       <Hourglass className="h-3 w-3 animate-spin" style={{ animationDuration: '2s' }} />
+                                       En attente
+                                     </>
+                                   ) :
+                                   r.status === 'CANCELLED' ? '❌ Annulé' :
+                                   r.status === 'REJECTED' ? '❌ Rejeté' : r.status}
+                                </span>
+                                <div className={`absolute -inset-1 rounded-lg blur-sm opacity-20 transition-all duration-300 group-hover:opacity-30 ${
+                                  r.status === 'CONFIRMED' ? 'bg-green-500' :
+                                  r.status === 'PROPOSED' ? 'bg-blue-500' : 
+                                  r.status === 'PENDING' ? 'bg-amber-500' :
+                                  r.status === 'CANCELLED' || r.status === 'REJECTED' ? 'bg-red-500' : 'bg-slate-500'
+                                }`}></div>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-white text-lg">{r.employeeName}</div>
-                            <div className="text-sm text-slate-600 dark:text-slate-400">{r.employeeDepartment}</div>
+
+                          {/* Motif Section - Enhanced */}
+                          <div 
+                            className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.03] cursor-pointer group/motif"
+                            style={{
+                              background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
+                              boxShadow: `0 4px 15px -4px ${themeColors.colors.primary[500]}20`
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
+                              e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`
+                              e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                            }}
+                          >
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2 transition-colors duration-300 group-hover/motif:text-slate-600 dark:group-hover/motif:text-slate-200">
+                              <div className="w-1.5 h-1.5 rounded-full transition-all duration-300 group-hover/motif:scale-150 group-hover/motif:rotate-180" style={{ backgroundColor: themeColors.colors.primary[500] }}></div>
+                              Motif de la visite
+                            </h4>
+                            <p className="text-slate-900 dark:text-slate-100 text-sm font-semibold leading-relaxed transition-colors duration-300 group-hover/motif:text-slate-800 dark:group-hover/motif:text-slate-100">
+                              {r.motif}
+                            </p>
                           </div>
-                        </div>
-                        <div className="text-slate-700 dark:text-slate-300 font-medium">{r.motif}</div>
-                        <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
-                          <span className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            Demandé le {format(new Date(r.createdAt), 'dd/MM/yyyy', { locale: fr })}
-                          </span>
+
+                          {/* Consignes Section - Display instructions from nurse/doctor */}
+                          {r.notes && (
+                            <div 
+                              className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.03] cursor-pointer group/consignes"
+                              style={{
+                                background: `linear-gradient(135deg, #f0f9ff, #e0f2fe)`,
+                                boxShadow: `0 4px 15px -4px #0ea5e920`
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, #e0f2fe, #bae6fd)`
+                                e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, #f0f9ff, #e0f2fe)`
+                                e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                              }}
+                            >
+                              <h4 className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider flex items-center gap-2 transition-colors duration-300 group-hover/consignes:text-blue-600 dark:group-hover/consignes:text-blue-200">
+                                <div className="w-1.5 h-1.5 rounded-full transition-all duration-300 group-hover/consignes:scale-150 group-hover/consignes:rotate-180" style={{ backgroundColor: '#0ea5e9' }}></div>
+                                📋 Consignes médicales
+                              </h4>
+                              <p className="text-blue-900 dark:text-blue-100 text-sm font-semibold leading-relaxed transition-colors duration-300 group-hover/consignes:text-blue-800 dark:group-hover/consignes:text-blue-100">
+                                {r.notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Due Date Section - Enhanced */}
                           {r.dueDate && (
-                            <span className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4" />
-                              Échéance {format(new Date(r.dueDate), 'dd/MM/yyyy', { locale: fr })}
-                            </span>
+                            <div 
+                              className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer group/due"
+                              style={{
+                                background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`,
+                                boxShadow: `0 4px 15px -4px ${themeColors.colors.primary[500]}25`
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[200]}, ${themeColors.colors.primary[300]})`
+                                e.currentTarget.style.transform = 'translateY(-1px) scale(1.05)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
+                                e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                              }}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="h-5 w-5 rounded-md bg-white/30 flex items-center justify-center transition-all duration-300 group-hover/due:scale-110">
+                                  <Calendar className="h-3 w-3" style={{ color: themeColors.colors.primary[700] }} />
+                                </div>
+                                <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: themeColors.colors.primary[800] }}>
+                                  Échéance
+                                </h4>
+                              </div>
+                              <p className="text-sm font-bold" style={{ color: themeColors.colors.primary[800] }}>
+                                {format(new Date(r.dueDate), "dd MMM yyyy", { locale: fr })}
+                              </p>
+                            </div>
                           )}
-                          {r.visitType && (
-                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs font-medium">
-                              {r.visitType}
-                            </span>
-                          )}
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            r.status === 'PENDING' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
-                            r.status === 'PROPOSED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
-                            r.status === 'CONFIRMED' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                            r.status === 'CANCELLED' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                            r.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                            'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300'
-                          }`}>
-                            {r.status}
-                          </span>
                         </div>
-                      </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-3 min-w-[200px]">
                       <Button 
                         variant="outline" 
-                        onClick={()=>setShowEmployeeInfo(true)}
-                        className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-300 shadow-sm hover:shadow-md"
-                      >
-                        <User className="h-4 w-4 mr-2" />
+                            onClick={() => {
+                              setSelectedEmployeeForInfo(r.employeeId)
+                              setShowEmployeeInfo(true)
+                            }}
+                            className="w-full transition-all duration-500 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                            style={{
+                              borderColor: themeColors.colors.primary[300],
+                              color: themeColors.colors.primary[700],
+                              background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
+                              boxShadow: `0 4px 12px -4px ${themeColors.colors.primary[500]}20`
+                            }}
+                          >
+                            <User className="h-4 w-4 mr-2 transition-transform duration-300 group-hover:scale-110" />
                         Infos salarié
                       </Button>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -499,7 +768,7 @@ export default function RhVisitesPage() {
         </DialogContent>
       </Dialog>
 
-      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={employeeId} />
+      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={selectedEmployeeForInfo || 0} />
     </div>
   )
 }

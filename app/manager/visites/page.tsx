@@ -92,6 +92,11 @@ export default function ManagerVisitesPage() {
                 <div>
                   <div className="font-semibold">{r.employeeName} <span className="text-xs ml-2">{r.employeeDepartment}</span></div>
                   <div className="text-sm text-slate-600">{r.motif}</div>
+                  {r.notes && (
+                    <div className="text-sm text-blue-600 mt-1 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-700">
+                      <span className="font-medium">📋 Consignes:</span> {r.notes}
+                    </div>
+                  )}
                   <div className="text-xs text-slate-500 mt-1">Proposé: {r.proposedDate && r.proposedTime ? `${format(new Date(r.proposedDate), 'dd/MM/yyyy', { locale: fr })} à ${r.proposedTime}` : '-'}</div>
                 </div>
                 <Button onClick={() => setSelected(r)} variant="outline">Proposer un autre créneau</Button>

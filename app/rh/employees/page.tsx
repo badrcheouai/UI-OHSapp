@@ -79,6 +79,10 @@ interface Employee {
   birthDate?: string
   address?: string
   company?: string
+  manager1Id?: number
+  manager1Name?: string
+  manager2Id?: number
+  manager2Name?: string
 }
 
 export default function RHEmployeesPage() {
@@ -110,6 +114,8 @@ export default function RHEmployeesPage() {
     address: "",
     company: ""
   })
+
+
   
   // Bulk import state
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false)
@@ -121,7 +127,15 @@ export default function RHEmployeesPage() {
   const fetchEmployees = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/v1/admin/employees', {
+      
+      // Check if we have a valid access token
+      if (!accessToken) {
+        throw new Error('No access token available')
+      }
+
+      // Use the correct API endpoint for RH users
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+      const response = await fetch(`${apiUrl}/api/v1/rh/employees`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -130,13 +144,39 @@ export default function RHEmployeesPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setEmployees(data)
+        
+        // Validate the data structure and filter out invalid entries
+        if (Array.isArray(data)) {
+          const validEmployees = data.filter((emp: any) => {
+            // Check if employee has required fields
+            return emp && 
+                   emp.id && 
+                   emp.firstName && 
+                   emp.lastName && 
+                   emp.email && 
+                   emp.email.includes('@') // Basic email validation
+          })
+          
+          if (validEmployees.length !== data.length) {
+            console.warn(`Filtered out ${data.length - validEmployees.length} invalid employee records`)
+          }
+          
+          setEmployees(validEmployees)
+        } else {
+          console.error('Invalid data structure received from API')
+          setEmployees([])
+          toast.error("Format de données invalide reçu de l'API")
+        }
       } else {
-        throw new Error('Failed to fetch employees')
+        const errorText = await response.text()
+        console.error('API Error:', response.status, errorText)
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
       }
     } catch (error) {
       console.error("Error fetching employees:", error)
       toast.error("Erreur lors du chargement des employés")
+      // Set empty array instead of leaving previous data
+      setEmployees([])
     } finally {
       setLoading(false)
     }
@@ -144,6 +184,7 @@ export default function RHEmployeesPage() {
 
   useEffect(() => {
     if (user?.roles?.includes("RESP_RH")) {
+      console.log("Fetching employees for user:", user.username, "with token:", accessToken ? "present" : "missing")
       fetchEmployees()
     }
   }, [user, accessToken])
@@ -151,7 +192,7 @@ export default function RHEmployeesPage() {
   // Create employee
   const createEmployee = async () => {
     try {
-      const response = await fetch('/api/v1/admin/employees', {
+      const response = await fetch('/api/v1/rh/employees', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -186,7 +227,8 @@ export default function RHEmployeesPage() {
     if (!selectedEmployee) return
 
     try {
-      const response = await fetch(`/api/v1/admin/employees/${selectedEmployee.id}`, {
+      // First update the employee data
+      const response = await fetch(`/api/v1/rh/employees/${selectedEmployee.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -196,6 +238,30 @@ export default function RHEmployeesPage() {
       })
 
       if (response.ok) {
+        // Then update managers if they were changed
+        if (selectedEmployee.manager1Id !== undefined || selectedEmployee.manager2Id !== undefined) {
+          const managerResponse = await fetch(`/api/v1/rh/employees/${selectedEmployee.id}/managers`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              manager1Id: selectedEmployee.manager1Id,
+              manager2Id: selectedEmployee.manager2Id
+            })
+          })
+
+          if (!managerResponse.ok) {
+            console.error("Error updating managers:", await managerResponse.text())
+            toast.error("Employé mis à jour mais erreur lors de l'assignation des managers")
+            setShowEditDialog(false)
+            setSelectedEmployee(null)
+            fetchEmployees()
+            return
+          }
+        }
+
         toast.success("Employé mis à jour avec succès")
         setShowEditDialog(false)
         setSelectedEmployee(null)
@@ -212,7 +278,7 @@ export default function RHEmployeesPage() {
   // Delete employee
   const deleteEmployee = async (employeeId: number) => {
     try {
-      const response = await fetch(`/api/v1/admin/employees/${employeeId}`, {
+      const response = await fetch(`/api/v1/rh/employees/${employeeId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -232,6 +298,8 @@ export default function RHEmployeesPage() {
     }
   }
 
+
+
   // Bulk import
   const handleBulkImport = async () => {
     if (!bulkImportData.trim()) {
@@ -248,7 +316,7 @@ export default function RHEmployeesPage() {
         return
       }
 
-      const response = await fetch('/api/v1/admin/employees/bulk-import', {
+      const response = await fetch('/api/v1/rh/employees/bulk-import', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -475,11 +543,9 @@ export default function RHEmployeesPage() {
                         <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                                                   <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Nom</TableHead>
                         <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Email</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Département</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Date d'embauche</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4 text-center">Actions</TableHead>
+                                                  <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
+                                                    <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4 text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -520,50 +586,40 @@ export default function RHEmployeesPage() {
                               </div>
                             </TableCell>
                             <TableCell className="py-4">
-                              <Badge 
-                                className="px-3 py-1 text-xs font-medium"
-                                style={{
-                                  background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`,
-                                  color: themeColors.colors.primary[800]
-                                }}
-                              >
-                                {employee.department || '-'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="py-4">
                               <span className="text-slate-700 dark:text-slate-300">{employee.position || '-'}</span>
                             </TableCell>
                             <TableCell className="py-4">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-slate-400" />
-                                <span className="text-slate-700 dark:text-slate-300">{employee.hireDate || '-'}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-4">
                               <div className="flex items-center justify-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedEmployee(employee)
+                                {/* View Employee Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedEmployee(employee)
                                     setShowViewDialog(true)
-                            }}
-                                  className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-200"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedEmployee(employee)
+                                  }}
+                                  className="h-9 w-9 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:scale-110 transition-all duration-200"
+                                  title="Voir les détails"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                
+                                {/* Edit Employee Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedEmployee(employee)
                                     setShowEditDialog(true)
-                            }}
-                                  className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-200"
-                          >
-                            <Edit className="h-4 w-4" />
-                            </Button>
-                        </div>
+                                  }}
+                                  className="h-9 w-9 p-0 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:scale-110 transition-all duration-200"
+                                  title="Modifier l'employé"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                
+
+                              </div>
                             </TableCell>
                           </TableRow>
                     ))}
@@ -877,23 +933,23 @@ export default function RHEmployeesPage() {
 
         {/* Edit Employee Dialog */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
-            <DialogHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 border-b border-slate-200/60 dark:border-slate-700/60 pb-6">
-              <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center" 
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
+            <DialogHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
+              <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <div className="h-6 w-6 rounded-md flex items-center justify-center" 
                      style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[600]})`}}>
-                  <Edit className="h-4 w-4 text-white" />
+                  <Edit className="h-3 w-3 text-white" />
                 </div>
                 Modifier l'employé
               </DialogTitle>
-              <DialogDescription className="text-slate-600 dark:text-slate-400">
+              <DialogDescription className="text-slate-600 dark:text-slate-400 text-sm">
                 Modifiez les informations de l'employé
               </DialogDescription>
             </DialogHeader>
             {selectedEmployee && (
-              <div className="grid gap-6 py-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editFirstName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Prénom *</Label>
           <Input
                       id="editFirstName"
@@ -903,7 +959,7 @@ export default function RHEmployeesPage() {
                       placeholder="Prénom de l'employé"
           />
         </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editLastName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Nom *</Label>
           <Input
                       id="editLastName"
@@ -914,7 +970,7 @@ export default function RHEmployeesPage() {
           />
         </div>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Label htmlFor="editEmail" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Email *</Label>
           <Input
                     id="editEmail"
@@ -925,8 +981,8 @@ export default function RHEmployeesPage() {
                     placeholder="email@exemple.com"
           />
         </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editPhoneNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Téléphone</Label>
           <Input
                       id="editPhoneNumber"
@@ -936,7 +992,7 @@ export default function RHEmployeesPage() {
                       placeholder="+212 6 12 34 56 78"
           />
         </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editDepartment" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Département</Label>
                     <Input
                       id="editDepartment"
@@ -947,7 +1003,7 @@ export default function RHEmployeesPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Label htmlFor="editPosition" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Poste</Label>
                   <Input
                     id="editPosition"
@@ -959,8 +1015,8 @@ export default function RHEmployeesPage() {
       </div>
 
                 {/* Additional Personal Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editGender" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Genre *</Label>
                     <Select value={selectedEmployee.gender} onValueChange={(value) => setSelectedEmployee({...selectedEmployee, gender: value})}>
                       <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md">
@@ -972,7 +1028,7 @@ export default function RHEmployeesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editBirthDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date de naissance *</Label>
                     <Input
                       id="editBirthDate"
@@ -984,7 +1040,7 @@ export default function RHEmployeesPage() {
                   </div>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Label htmlFor="editAddress" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Adresse *</Label>
                   <Input
                     id="editAddress"
@@ -995,8 +1051,8 @@ export default function RHEmployeesPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editCompany" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Entreprise *</Label>
                     <Input
                       id="editCompany"
@@ -1006,7 +1062,7 @@ export default function RHEmployeesPage() {
                       placeholder="Ex: OHSE CAPITAL"
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label htmlFor="editHireDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date d'embauche *</Label>
                     <Input
                       id="editHireDate"
@@ -1018,7 +1074,7 @@ export default function RHEmployeesPage() {
                   </div>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Label htmlFor="editMatriculeNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Numéro matricule</Label>
                   <Input
                     id="editMatriculeNumber"
@@ -1028,9 +1084,49 @@ export default function RHEmployeesPage() {
                     placeholder="Ex: MAT-1234567890"
                   />
                 </div>
+
+                {/* Manager Assignment Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="editManager1" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Responsable N+1</Label>
+                    <Select value={selectedEmployee.manager1Id?.toString() || "none"} onValueChange={(value) => setSelectedEmployee({...selectedEmployee, manager1Id: value === "none" ? undefined : parseInt(value)})}>
+                      <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md">
+                        <SelectValue placeholder="Sélectionner le responsable N+1" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {employees
+                          .filter(emp => emp.id !== selectedEmployee.id)
+                          .map(emp => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.firstName} {emp.lastName} - {emp.department || 'N/A'}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editManager2" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Responsable N+2</Label>
+                    <Select value={selectedEmployee.manager2Id?.toString() || "none"} onValueChange={(value) => setSelectedEmployee({...selectedEmployee, manager2Id: value === "none" ? undefined : parseInt(value)})}>
+                      <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md">
+                        <SelectValue placeholder="Sélectionner le responsable N+2" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {employees
+                          .filter(emp => emp.id !== selectedEmployee.id)
+                          .map(emp => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.firstName} {emp.lastName} - {emp.department || 'N/A'}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             )}
-            <DialogFooter className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/60 dark:border-slate-700/60 pt-6">
+            <DialogFooter className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/60 dark:border-slate-700/60 pt-4">
               <Button 
                 variant="outline" 
                 onClick={() => setShowEditDialog(false)}
@@ -1058,6 +1154,8 @@ export default function RHEmployeesPage() {
           onOpenChange={setShowViewDialog}
           employeeId={selectedEmployee?.id || 0}
         />
+
+
       </div>
     </div>
   )

@@ -21,7 +21,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Clock as ClockIcon,
-  Trash2
+  Trash2,
+  Hourglass
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -103,7 +104,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
       case "pending":
         return {
           icon: Clock,
-          color: "bg-slate-500",
+          color: "bg-orange-500",
           text: "En attente",
           description: "Votre demande est en cours de traitement"
         }
@@ -172,8 +173,8 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
             </div>
             <Badge 
               variant="outline" 
-              className={`border-2 px-4 py-2 text-sm font-semibold ${
-                componentRequest.status === "pending" ? "border-slate-500 bg-slate-100 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300" :
+              className={`border-2 px-4 py-2 text-sm font-semibold flex items-center gap-2 ${
+                componentRequest.status === "pending" ? "border-orange-500 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" :
                 componentRequest.status === "proposed" ? "border-orange-500 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" :
                 componentRequest.status === "confirmed" ? "border-green-600 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
                 componentRequest.status === "rejected" ? "border-red-600 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" :
@@ -181,7 +182,12 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                 "border-gray-600 bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300"
               }`}
             >
-              {componentRequest.status.toUpperCase()}
+              {componentRequest.status === "pending" ? (
+                <>
+                  <Hourglass className="h-3 w-3 animate-spin" style={{ animationDuration: '2s' }} />
+                  EN ATTENTE
+                </>
+              ) : componentRequest.status.toUpperCase()}
             </Badge>
           </div>
         </CardContent>
@@ -540,7 +546,10 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                         {proposal.reason && (
                           <span className="text-xs italic text-slate-500 dark:text-slate-400">{proposal.reason}</span>
                         )}
-                        <span className={`text-xs font-semibold ${colorClass}`}>
+                        <span className={`text-xs font-semibold ${colorClass} flex items-center gap-1`}>
+                          {displayStatusLabel === "En attente" && (
+                            <Hourglass className="h-2 w-2 animate-spin" style={{ animationDuration: '2s' }} />
+                          )}
                           {displayStatusLabel}
                         </span>
                         <span className="text-xs text-slate-400 dark:text-slate-500">

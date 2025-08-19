@@ -73,8 +73,8 @@ export default function EmployeesManagersPage() {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (stored) { try { const p = JSON.parse(stored); if (p.access_token) headers['Authorization'] = `Bearer ${p.access_token}` } catch {} }
       const body = {
-        manager1Id: manager1Id ? parseInt(manager1Id) : null,
-        manager2Id: manager2Id ? parseInt(manager2Id) : null,
+        manager1Id: manager1Id && manager1Id !== "none" ? parseInt(manager1Id) : null,
+        manager2Id: manager2Id && manager2Id !== "none" ? parseInt(manager2Id) : null,
       }
       const res = await fetch(`${base}/api/v1/admin/employees/${targetEmployee.id}/managers`, {
         method: 'PUT', headers, body: JSON.stringify(body)
@@ -139,8 +139,8 @@ export default function EmployeesManagersPage() {
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => {
                         setTargetEmployee(emp)
-                        setManager1Id(emp.manager1Id ? String(emp.manager1Id) : "")
-                        setManager2Id(emp.manager2Id ? String(emp.manager2Id) : "")
+                        setManager1Id(emp.manager1Id ? String(emp.manager1Id) : "none")
+                        setManager2Id(emp.manager2Id ? String(emp.manager2Id) : "none")
                         setEditOpen(true)
                       }}>
                         <Shield className="h-4 w-4 mr-2" />Définir
@@ -166,7 +166,7 @@ export default function EmployeesManagersPage() {
               <Select value={manager1Id} onValueChange={setManager1Id}>
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
+                  <SelectItem value="none">Aucun</SelectItem>
                   {employees.map(e => (
                     <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} ({e.department||'-'})</SelectItem>
                   ))}
@@ -178,7 +178,7 @@ export default function EmployeesManagersPage() {
               <Select value={manager2Id} onValueChange={setManager2Id}>
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
+                  <SelectItem value="none">Aucun</SelectItem>
                   {employees.map(e => (
                     <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} ({e.department||'-'})</SelectItem>
                   ))}

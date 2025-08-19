@@ -5,8 +5,8 @@ export const api = axios.create({
     params: {
         v: Date.now(), // Cache busting
     },
-    // Add timeout configuration
-    timeout: 10000,
+    // Increase timeout for medical visit operations
+    timeout: 30000, // 30 seconds instead of 10
 });
 
 api.interceptors.request.use(cfg => {
@@ -98,6 +98,9 @@ export interface MedicalVisitRequest {
   employeeId: number;
   employeeName: string;
   employeeDepartment: string;
+  employeeEmail?: string;
+  employeeGender?: string;
+  employeeCompany?: string;
   motif: string;
   dateSouhaitee: string;
   heureSouhaitee: string;
