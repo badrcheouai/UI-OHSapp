@@ -213,17 +213,17 @@ export default function DemandeVisiteMedicaleMedecin() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
-        return <Badge variant="secondary" className="bg-slate-100 text-slate-800">En attente</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">En attente</Badge>
       case "PROPOSED":
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Proposé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30">Proposé</Badge>
       case "CONFIRMED":
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Confirmé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">Confirmé</Badge>
       case "CANCELLED":
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">Annulé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Annulé</Badge>
       case "REJECTED":
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">Rejeté</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Rejeté</Badge>
       default:
-        return <Badge variant="secondary">Inconnu</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">Inconnu</Badge>
     }
   }
 
@@ -719,18 +719,22 @@ export default function DemandeVisiteMedicaleMedecin() {
                     <div className="flex flex-col gap-2 min-w-[200px]">
                       {request.status === "PENDING" && (
                         <>
-                          <Button
-                            onClick={() => handleConfirm(request.id)}
-                            disabled={isProcessing}
-                            className="w-full text-white hover:shadow-lg transition-all duration-300"
-                            style={{
-                              background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
-                              boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
-                            }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Confirmer
-                          </Button>
+                          {/* Only show Confirmer button for non-EMBAUCHE and non-REPRISE visits */}
+                          {request.visitType !== 'EMBAUCHE' && request.visitType !== 'REPRISE' && (
+                            <Button
+                              onClick={() => handleConfirm(request.id)}
+                              disabled={isProcessing}
+                              className="w-full text-white hover:shadow-lg transition-all duration-300"
+                              style={{
+                                background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                                boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
+                              }}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Confirmer
+                            </Button>
+                          )}
+                          {/* Always show Proposer un créneau button for PENDING requests */}
                           <Button
                             variant="outline"
                             onClick={() => {

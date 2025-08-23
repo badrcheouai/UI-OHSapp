@@ -95,13 +95,13 @@ export default function EmployeesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "compliant":
-        return <Badge className="status-success">{t.compliant}</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">{t.compliant}</Badge>
       case "pending":
-        return <Badge className="status-warning">{t.pending}</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">{t.pending}</Badge>
       case "overdue":
-        return <Badge className="status-error">{t.overdue}</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">{t.overdue}</Badge>
       default:
-        return <Badge className="status-neutral">{status}</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">{status}</Badge>
     }
   }
 

@@ -49,6 +49,7 @@ export default function DemandeVisiteMedicale() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [isSubmittingReject, setIsSubmittingReject] = useState(false)
+  const [isAcceptLoading, setIsAcceptLoading] = useState(false)
 
   // Helper function to get employee ID from user
   const getEmployeeId = async () => {
@@ -975,7 +976,7 @@ export default function DemandeVisiteMedicale() {
                             </CardTitle>
                             <CardDescription className="text-slate-600 dark:text-slate-400 text-base">Résumé et détails</CardDescription>
                           </CardHeader>
-                          <CardContent className="space-y-4">
+                          <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div 
                                 className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
@@ -1035,6 +1036,25 @@ export default function DemandeVisiteMedicale() {
                                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.heureSouhaitee}</div>
                                 </div>
                               )}
+                              {/* Modalité */}
+                              <div 
+                                className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                style={{
+                                  background: isDark 
+                                    ? `linear-gradient(135deg, #1e293b, #334155)`
+                                    : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                  boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                }}
+                              >
+                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Modalité</div>
+                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                  {currentRequest.proposedModality === 'PRESENTIEL' ? '🏥 Présentiel' : 
+                                   currentRequest.proposedModality === 'DISTANCE' ? '💻 À distance' :
+                                   currentRequest.modality === 'PRESENTIEL' ? '🏥 Présentiel' :
+                                   currentRequest.modality === 'DISTANCE' ? '💻 À distance' :
+                                   'Non spécifiée'}
+                                </div>
+                              </div>
                             </div>
 
                             {/* Consignes Section - Display instructions from nurse/doctor */}
@@ -1063,6 +1083,43 @@ export default function DemandeVisiteMedicale() {
                               </div>
                             )}
 
+
+
+
+
+                            {/* Actions for proposed slot: accept/refuse */}
+                            {currentRequest.status === 'PROPOSED' && (
+                              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                <Button
+                                  disabled={isAcceptLoading}
+                                  className="text-white"
+                                  style={{background:`linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`}}
+                                  onClick={async ()=>{
+                                    try {
+                                      setIsAcceptLoading(true)
+                                      await medicalVisitAPI.acceptProposal(currentRequest.id)
+                                      toast({ title: 'Proposition acceptée', description: 'Le service médical sera notifié.' })
+                                      const employeeId = await getEmployeeId()
+                                      const resp = await medicalVisitAPI.getEmployeeRequests(employeeId)
+                                      if (resp.data.length>0) setCurrentRequest(resp.data[0])
+                                    } catch (e:any) {
+                                      toast({ title: 'Erreur', description: "Impossible d'accepter la proposition.", variant: 'destructive' })
+                                    } finally {
+                                      setIsAcceptLoading(false)
+                                    }
+                                  }}
+                                >
+                                  Accepter le créneau
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={()=> setIsRejectDialogOpen(true)}
+                                  className="border-slate-300 dark:border-slate-600"
+                                >
+                                  Refuser et donner la raison
+                                </Button>
+                              </div>
+                            )}
                             {/* Removed expandable details section */}
                           </CardContent>
                         </Card>
@@ -1164,6 +1221,42 @@ export default function DemandeVisiteMedicale() {
 
 
       </div>
+      {/* Reject dialog */}
+      {isRejectDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-[95%] max-w-md">
+            <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">Refuser la proposition</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Merci d'indiquer la raison de votre refus</p>
+            <Textarea value={rejectReason} onChange={(e)=>setRejectReason(e.target.value)} placeholder="Votre raison..." className="mb-4 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600" />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={()=>{ setIsRejectDialogOpen(false); setRejectReason("") }} className="border-slate-300 dark:border-slate-600">Annuler</Button>
+              <Button
+                disabled={isSubmittingReject || !rejectReason.trim()}
+                className="text-white"
+                style={{background:`linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`}}
+                onClick={async ()=>{
+                  try {
+                    setIsSubmittingReject(true)
+                    await medicalVisitAPI.rejectProposal(currentRequest!.id, rejectReason)
+                    toast({ title: 'Proposition refusée', description: 'Le service médical sera notifié.' })
+                    setIsRejectDialogOpen(false)
+                    setRejectReason('')
+                    const employeeId = await getEmployeeId()
+                    const resp = await medicalVisitAPI.getEmployeeRequests(employeeId)
+                    if (resp.data.length>0) setCurrentRequest(resp.data[0])
+                  } catch (e:any) {
+                    toast({ title: 'Erreur', description: 'Refus impossible.', variant: 'destructive' })
+                  } finally {
+                    setIsSubmittingReject(false)
+                  }
+                }}
+              >
+                {isSubmittingReject ? 'Envoi...' : 'Envoyer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

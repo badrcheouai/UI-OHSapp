@@ -20,11 +20,12 @@ import { useToast } from "@/hooks/use-toast"
 import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { Calendar, Stethoscope, Filter, Search, User, Mail, RefreshCw, Hourglass } from "lucide-react"
+import { Calendar, Stethoscope, Filter, Search, User, Mail, RefreshCw, Hourglass, Phone, Upload, FileText, X, Info } from "lucide-react"
 import { EnhancedCalendar } from "@/components/enhanced-calendar"
+import RepriseVisitInfoBox from "@/components/RepriseVisitInfoBox"
 
 export default function RhVisitesPage() {
-  const { user, loading, logout } = useAuth()
+  const { user, loading, logout, accessToken } = useAuth()
   const { themeColors } = useTheme()
   const router = useRouter()
   const { toast } = useToast()
@@ -38,11 +39,17 @@ export default function RhVisitesPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [notes, setNotes] = useState("")
   const [createType, setCreateType] = useState<'EMBAUCHE'|'REPRISE'>('EMBAUCHE')
-  const [repriseCase, setRepriseCase] = useState<"AT_MP"|"ACCIDENT_MALADIE_HORS_AT_MP"|"ABSENCES_REPETEES"|"">("")
-  const [repriseDialogOpen, setRepriseDialogOpen] = useState(false)
-  const [repriseDetails, setRepriseDetails] = useState("")
+  const [repriseCase, setRepriseCase] = useState<"AT_MP"|"ACCIDENT_MALADIE_HORS_AT_MP"|"ABSENCES_REPETEES"|"ACCOUCHEMENT"|"">("")
   const [showEmployeeInfo, setShowEmployeeInfo] = useState(false)
   const [selectedEmployeeForInfo, setSelectedEmployeeForInfo] = useState<number | null>(null)
+
+  // Certificate upload state for REPRISE
+  const [certificateFiles, setCertificateFiles] = useState<File[]>([])
+  const [isUploadingCertificate, setIsUploadingCertificate] = useState(false)
+
+  // REPRISE info dialog state
+  const [repriseInfoDialogOpen, setRepriseInfoDialogOpen] = useState(false)
+  const [selectedRequestForCertificates, setSelectedRequestForCertificates] = useState<MedicalVisitRequest | null>(null)
 
   const [requests, setRequests] = useState<MedicalVisitRequest[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
@@ -82,7 +89,8 @@ export default function RhVisitesPage() {
       const okStatus = statusFilter === 'ALL' || r.status === statusFilter
       const okType = typeFilter === 'ALL' || r.visitType === typeFilter
       const okDept = !deptFilter || (r.employeeDepartment||'').toLowerCase().includes(deptFilter.toLowerCase())
-      const okSearch = !search || (r.employeeName + ' ' + r.motif).toLowerCase().includes(search.toLowerCase())
+      // RH should not search by motif; restrict to employee name
+      const okSearch = !search || (r.employeeName || '').toLowerCase().includes(search.toLowerCase())
       return okStatus && okType && okDept && okSearch
     })
   }, [requests, statusFilter, typeFilter, deptFilter, search])
@@ -112,7 +120,8 @@ export default function RhVisitesPage() {
     if (!employeeId || !repriseCase) { toast({ title: "Champs requis", variant: "destructive" }); return }
     setIsSubmitting(true)
     try {
-      await medicalVisitAPI.createRequest({
+      // Create the visit request first
+      const visitRequest = await medicalVisitAPI.createRequest({
         motif: notes || "Visite de reprise",
         dateSouhaitee: new Date().toISOString().split('T')[0],
         heureSouhaitee: "09:00",
@@ -120,18 +129,73 @@ export default function RhVisitesPage() {
         visitType: 'REPRISE',
         dueDate,
         repriseCategory: repriseCase,
-        repriseDetails: repriseDetails || undefined,
+        repriseDetails: undefined, // Removed repriseDetails
       }, employeeId)
+      
+      // Upload certificates if any
+      if (certificateFiles.length > 0) {
+        setIsUploadingCertificate(true);
+        for (let i = 0; i < certificateFiles.length; i++) {
+          const formData = new FormData();
+          formData.append('file', certificateFiles[i]);
+          formData.append('visitRequestId', visitRequest.data.id.toString());
+          formData.append('employeeId', employeeId.toString());
+          formData.append('description', '');
+          formData.append('certificateType', 'CERTIFICAT_MEDICAL');
+          
+          try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+              headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+
+            await fetch('/api/v1/medical-certificates/upload', {
+              method: 'POST',
+              headers,
+              body: formData,
+            });
+          } catch (error) {
+            console.error('Error uploading certificate:', error);
+            toast({ title: "Attention", description: "Erreur lors de l'upload d'un certificat", variant: "destructive" });
+          }
+        }
+        setIsUploadingCertificate(false);
+      }
+      
       toast({ title: "Demande créée" })
       setNotes("")
-      setRepriseDetails("")
-      setRepriseDialogOpen(false)
+      setCertificateFiles([])
       await loadAll()
       setActiveTab("consulter")
     } catch (e) {
       toast({ title: "Erreur", description: "Création impossible", variant: "destructive" })
-    } finally { setIsSubmitting(false) }
+    } finally { 
+      setIsSubmitting(false)
+      setIsUploadingCertificate(false)
+    }
   }
+
+  const handleAddCertificate = () => {
+    const fileInput = document.getElementById('certificate-file') as HTMLInputElement;
+    
+    if (fileInput?.files?.[0]) {
+      const file = fileInput.files[0];
+      
+      setCertificateFiles(prev => [...prev, file]);
+      
+      // Clear the form
+      fileInput.value = '';
+      
+      toast({ title: "Certificat ajouté", description: "Le certificat a été ajouté à la liste" });
+    } else {
+      toast({ title: "Erreur", description: "Veuillez sélectionner un fichier", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveCertificate = (index: number) => {
+    setCertificateFiles(prev => prev.filter((_, i) => i !== index));
+    toast({ title: "Certificat supprimé", description: "Le certificat a été retiré de la liste" });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-950">
@@ -248,10 +312,10 @@ export default function RhVisitesPage() {
                 {createType === 'REPRISE' && (
                   <div className="md:col-span-2 space-y-3">
                     <Label className="text-slate-700 dark:text-slate-300 font-medium">Cas de reprise</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <Button 
                         variant={repriseCase==='AT_MP'?'default':'outline'} 
-                        onClick={()=>{setRepriseCase('AT_MP'); setRepriseDialogOpen(true)}}
+                        onClick={()=>setRepriseCase('AT_MP')}
                         className={`transition-all duration-300 ${
                           repriseCase==='AT_MP' 
                             ? 'text-white shadow-lg' 
@@ -259,11 +323,11 @@ export default function RhVisitesPage() {
                         }`}
                         style={repriseCase==='AT_MP' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
                       >
-                        AT/MP
+                        Absence pour AT/MP
                       </Button>
                       <Button 
                         variant={repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP'?'default':'outline'} 
-                        onClick={()=>{setRepriseCase('ACCIDENT_MALADIE_HORS_AT_MP'); setRepriseDialogOpen(true)}}
+                        onClick={()=>setRepriseCase('ACCIDENT_MALADIE_HORS_AT_MP')}
                         className={`transition-all duration-300 ${
                           repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP' 
                             ? 'text-white shadow-lg' 
@@ -271,11 +335,11 @@ export default function RhVisitesPage() {
                         }`}
                         style={repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
                       >
-                        Accident/Maladie hors AT/MP
+                        Absence pour accidents/maladie hors AT/MP
                       </Button>
                       <Button 
                         variant={repriseCase==='ABSENCES_REPETEES'?'default':'outline'} 
-                        onClick={()=>{setRepriseCase('ABSENCES_REPETEES'); setRepriseDialogOpen(true)}}
+                        onClick={()=>setRepriseCase('ABSENCES_REPETEES')}
                         className={`transition-all duration-300 ${
                           repriseCase==='ABSENCES_REPETEES' 
                             ? 'text-white shadow-lg' 
@@ -283,32 +347,144 @@ export default function RhVisitesPage() {
                         }`}
                         style={repriseCase==='ABSENCES_REPETEES' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
                       >
-                        Absences répétées
+                        Absence répétées pour raison de santé
+                      </Button>
+                      <Button 
+                        variant={repriseCase==='ACCOUCHEMENT'?'default':'outline'} 
+                        onClick={()=>setRepriseCase('ACCOUCHEMENT')}
+                        className={`transition-all duration-300 ${
+                          repriseCase==='ACCOUCHEMENT' 
+                            ? 'text-white shadow-lg' 
+                            : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
+                        }`}
+                        style={repriseCase==='ACCOUCHEMENT' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
+                      >
+                        Absence pour accouchement
                       </Button>
                     </div>
                   </div>
                 )}
+                
+                {/* Certificate Upload Section for REPRISE */}
+                {createType === 'REPRISE' && (
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+                      <div className="text-center space-y-4">
+                        <div className="flex justify-center">
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center shadow-lg" style={{
+                            background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`
+                          }}>
+                            <Upload className="h-6 w-6 text-white" />
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                            Certificats médicaux
+                          </h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Ajoutez les certificats médicaux nécessaires pour la visite de reprise
+                          </p>
+                        </div>
+                        
+                        {/* File Upload */}
+                        <div className="space-y-4 max-w-md mx-auto">
+                          <div>
+                            <Label htmlFor="certificate-file" className="text-slate-700 dark:text-slate-300 font-medium">
+                              Sélectionner un fichier
+                            </Label>
+                            <Input
+                              id="certificate-file"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif"
+                              className="mt-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300"
+                            />
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              Formats acceptés : PDF, JPEG, JPG, PNG, GIF (max 10MB)
+                            </p>
+                          </div>
+                          
+                          <Button
+                            onClick={handleAddCertificate}
+                            variant="outline"
+                            className="w-full transition-all duration-300"
+                            style={{
+                              borderColor: themeColors.colors.primary[300],
+                              color: themeColors.colors.primary[700],
+                              background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`
+                            }}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Ajouter le certificat
+                          </Button>
+                        </div>
+                        
+                        {/* Uploaded Files Preview */}
+                        <div className="mt-6">
+                          <div className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                            Certificats ajoutés : <span className="font-semibold" style={{color: themeColors.colors.primary[600]}}>{certificateFiles.length}</span>
+                          </div>
+                          
+                          {certificateFiles.length > 0 && (
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                              {certificateFiles.map((file, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center justify-between p-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{
+                                      background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
+                                    }}>
+                                      <FileText className="h-4 w-4" style={{color: themeColors.colors.primary[600]}} />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                        {file.name}
+                                      </p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveCertificate(index)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="md:col-span-2 space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 font-medium">Notes (optionnel)</Label>
+                  <Label className="text-slate-700 dark:text-slate-300 font-medium">Détails supplémentaires (optionnel)</Label>
                   <Textarea 
                     value={notes} 
                     onChange={(e)=>setNotes(e.target.value)} 
-                    placeholder="Remarques..." 
+                    placeholder="Décrivez les détails de la demande..." 
                     className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md resize-none" 
                     rows={4}
                   />
                 </div>
                 <div className="md:col-span-2 flex justify-center pt-4">
                   <Button
-                    disabled={!employeeId || isSubmitting || (createType==='REPRISE' && !repriseCase)}
+                    disabled={!employeeId || isSubmitting || isUploadingCertificate || (createType==='REPRISE' && !repriseCase)}
                     onClick={() => createType==='EMBAUCHE' ? createEmbauche() : createReprise()}
                     className="text-white px-10 py-4 text-lg font-semibold shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 active:scale-95"
                     style={{background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`}}
                   >
-                    {isSubmitting ? (
+                    {isSubmitting || isUploadingCertificate ? (
                       <>
                         <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                        Création en cours...
+                        {isUploadingCertificate ? 'Upload des certificats...' : 'Création en cours...'}
                       </>
                     ) : (
                       <>
@@ -419,306 +595,71 @@ export default function RhVisitesPage() {
                 </Card>
               ) : (
                 filtered.map(r => (
-                  <Card 
-                    key={r.id} 
-                    className="bg-white dark:bg-slate-800 border-0 shadow-lg hover:shadow-2xl transition-all duration-500 rounded-xl overflow-hidden group cursor-pointer"
-                    style={{
-                      boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.1), 0 3px 6px -2px rgba(0, 0, 0, 0.05)`
-                    }}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        {/* Request Info */}
-                        <div className="flex-1 space-y-3">
-                          {/* Header with Employee Info and Status */}
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <div 
-                                className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl cursor-pointer"
-                                style={{
-                                  background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[600]})`
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`
-                                  e.currentTarget.style.transform = 'scale(1.15) rotate(5deg)'
-                                  e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0,0,0,0.3)'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[600]})`
-                                  e.currentTarget.style.transform = 'scale(1) rotate(0deg)'
-                                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.2)'
-                                }}
-                              >
-                                <User className="h-5 w-5 text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
-                              </div>
-                              <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 group-hover:text-slate-700 dark:group-hover:text-slate-200">
-                                    {r.employeeName}
-                                  </h3>
-                                  {/* Date next to name */}
-                                  <div 
-                                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-pointer"
-                                    style={{
-                                      background: `linear-gradient(135deg, #fef3c7, #fde68a)`,
-                                      color: '#92400e',
-                                      boxShadow: `0 4px 12px -4px #f59e0b30`
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fde68a, #fbbf24)'
-                                      e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
-                                      e.currentTarget.style.boxShadow = '0 6px 20px -4px #f59e0b50'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fef3c7, #fde68a)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                      e.currentTarget.style.boxShadow = '0 4px 12px -4px #f59e0b30'
-                                    }}
-                                  >
-                                    Demandé le {format(new Date(r.createdAt), 'dd/MM/yyyy', { locale: fr })}
-                                  </div>
-                                </div>
-                                {/* Email under the name */}
-                                <div className="flex items-center gap-2">
-                                  <div 
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-red-200/50 border cursor-pointer"
-                                    style={{
-                                      background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
-                                      borderColor: '#fecaca',
-                                      color: '#dc2626',
-                                      boxShadow: '0 2px 8px -2px #fecaca40'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fee2e2, #fecaca)'
-                                      e.currentTarget.style.transform = 'translateY(-2px)'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = 'linear-gradient(135deg, #fef2f2, #fee2e2)'
-                                      e.currentTarget.style.transform = 'translateY(0)'
-                                    }}
-                                  >
-                                    <Mail className="h-3 w-3 transition-transform duration-300 hover:rotate-12" />
-                                    <span className="font-semibold">
-                                      {r.employeeEmail || `${r.employeeDepartment?.toLowerCase()}@ohse.com`}
-                                    </span>
-                                  </div>
-                                </div>
-                                {/* Visit Type with improved label design */}
-                                <div className="flex items-center gap-2">
-                                  <span 
-                                    className="px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wide transition-all duration-300"
-                                    style={{
-                                      background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
-                                      color: themeColors.colors.primary[700],
-                                      boxShadow: `0 2px 6px -2px ${themeColors.colors.primary[500]}15`
-                                    }}
-                                  >
-                                    Type de visite médicale :
-                                  </span>
-                                  {r.visitType && (
-                                    <span 
-                                      className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold shadow-md transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-blue-200/50 cursor-pointer"
-                                      style={{
-                                        background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`,
-                                        color: themeColors.colors.primary[800],
-                                        boxShadow: `0 4px 12px -4px ${themeColors.colors.primary[500]}30`
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[200]}, ${themeColors.colors.primary[300]})`
-                                        e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
-                                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                      }}
-                                    >
-                                      {r.visitType === 'SPONTANEE' ? 'Spontanée' :
-                                       r.visitType === 'PERIODIQUE' ? 'Périodique' :
-                                       r.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
-                                       r.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
-                                       r.visitType === 'REPRISE' ? 'Reprise' :
-                                       r.visitType === 'EMBAUCHE' ? 'Embauche' : r.visitType}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                              {/* Status Badge */}
-                              <div className="relative">
-                                <span
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg border transition-all duration-300 hover:scale-110 hover:shadow-2xl cursor-pointer ${
-                                    r.status === 'CONFIRMED'
-                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-400 shadow-green-500/25'
-                                      : r.status === 'PROPOSED'
-                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-400 shadow-blue-500/25'
-                                        : r.status === 'PENDING'
-                                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-400 shadow-amber-500/25'
-                                          : r.status === 'CANCELLED' || r.status === 'REJECTED'
-                                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400 shadow-red-500/25'
-                                            : 'bg-gradient-to-r from-slate-500 to-slate-600 text-white border-slate-400 shadow-slate-500/25'
-                                  }`}
-                                  onMouseEnter={(e) => {
-                                    if (r.status === 'CONFIRMED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #059669, #047857)'
-                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                                    } else if (r.status === 'PROPOSED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #1d4ed8, #1e40af)'
-                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                                    } else if (r.status === 'PENDING') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #d97706, #b45309)'
-                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                                    } else if (r.status === 'CANCELLED' || r.status === 'REJECTED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #dc2626, #b91c1c)'
-                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                                    } else {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #475569, #334155)'
-                                      e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (r.status === 'CONFIRMED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #10b981, #059669)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                    } else if (r.status === 'PROPOSED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #3b82f6, #1d4ed8)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                    } else if (r.status === 'PENDING') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #f59e0b, #d97706)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                    } else if (r.status === 'CANCELLED' || r.status === 'REJECTED') {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #ef4444, #dc2626)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                    } else {
-                                      e.currentTarget.style.background = 'linear-gradient(to right, #64748b, #475569)'
-                                      e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                                    }
-                                  }}
-                                >
-                                  {r.status === 'CONFIRMED' ? '✅ Confirmé' : 
-                                   r.status === 'PROPOSED' ? '🔄 Proposé' : 
-                                   r.status === 'PENDING' ? (
-                                     <>
-                                       <Hourglass className="h-3 w-3 animate-spin" style={{ animationDuration: '2s' }} />
-                                       En attente
-                                     </>
-                                   ) :
-                                   r.status === 'CANCELLED' ? '❌ Annulé' :
-                                   r.status === 'REJECTED' ? '❌ Rejeté' : r.status}
-                                </span>
-                                <div className={`absolute -inset-1 rounded-lg blur-sm opacity-20 transition-all duration-300 group-hover:opacity-30 ${
-                                  r.status === 'CONFIRMED' ? 'bg-green-500' :
-                                  r.status === 'PROPOSED' ? 'bg-blue-500' : 
-                                  r.status === 'PENDING' ? 'bg-amber-500' :
-                                  r.status === 'CANCELLED' || r.status === 'REJECTED' ? 'bg-red-500' : 'bg-slate-500'
-                                }`}></div>
-                              </div>
-                            </div>
+                  <Card key={r.id} className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-sm">
+                    <CardContent className="p-4 md:p-5">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="h-9 w-9 rounded-lg flex items-center justify-center" style={{background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`}}>
+                            <User className="h-4 w-4 text-white" />
                           </div>
-
-                          {/* Motif Section - Enhanced */}
-                          <div 
-                            className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.03] cursor-pointer group/motif"
-                            style={{
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.employeeName}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">Demandé le {format(new Date(r.createdAt), 'dd/MM/yyyy', { locale: fr })}</div>
+                            <div className="text-sm font-medium text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg border shadow-sm" style={{
                               background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
-                              boxShadow: `0 4px 15px -4px ${themeColors.colors.primary[500]}20`
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
-                              e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`
-                              e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                            }}
-                          >
-                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2 transition-colors duration-300 group-hover/motif:text-slate-600 dark:group-hover/motif:text-slate-200">
-                              <div className="w-1.5 h-1.5 rounded-full transition-all duration-300 group-hover/motif:scale-150 group-hover/motif:rotate-180" style={{ backgroundColor: themeColors.colors.primary[500] }}></div>
-                              Motif de la visite
-                            </h4>
-                            <p className="text-slate-900 dark:text-slate-100 text-sm font-semibold leading-relaxed transition-colors duration-300 group-hover/motif:text-slate-800 dark:group-hover/motif:text-slate-100">
-                              {r.motif}
-                            </p>
-                          </div>
-
-                          {/* Consignes Section - Display instructions from nurse/doctor */}
-                          {r.notes && (
-                            <div 
-                              className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.03] cursor-pointer group/consignes"
-                              style={{
-                                background: `linear-gradient(135deg, #f0f9ff, #e0f2fe)`,
-                                boxShadow: `0 4px 15px -4px #0ea5e920`
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = `linear-gradient(135deg, #e0f2fe, #bae6fd)`
-                                e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = `linear-gradient(135deg, #f0f9ff, #e0f2fe)`
-                                e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                              }}
-                            >
-                              <h4 className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider flex items-center gap-2 transition-colors duration-300 group-hover/consignes:text-blue-600 dark:group-hover/consignes:text-blue-200">
-                                <div className="w-1.5 h-1.5 rounded-full transition-all duration-300 group-hover/consignes:scale-150 group-hover/consignes:rotate-180" style={{ backgroundColor: '#0ea5e9' }}></div>
-                                📋 Consignes médicales
-                              </h4>
-                              <p className="text-blue-900 dark:text-blue-100 text-sm font-semibold leading-relaxed transition-colors duration-300 group-hover/consignes:text-blue-800 dark:group-hover/consignes:text-blue-100">
-                                {r.notes}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Due Date Section - Enhanced */}
-                          {r.dueDate && (
-                            <div 
-                              className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer group/due"
-                              style={{
-                                background: `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`,
-                                boxShadow: `0 4px 15px -4px ${themeColors.colors.primary[500]}25`
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[200]}, ${themeColors.colors.primary[300]})`
-                                e.currentTarget.style.transform = 'translateY(-1px) scale(1.05)'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = `linear-gradient(135deg, ${themeColors.colors.primary[100]}, ${themeColors.colors.primary[200]})`
-                                e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                              }}
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="h-5 w-5 rounded-md bg-white/30 flex items-center justify-center transition-all duration-300 group-hover/due:scale-110">
-                                  <Calendar className="h-3 w-3" style={{ color: themeColors.colors.primary[700] }} />
-                                </div>
-                                <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: themeColors.colors.primary[800] }}>
-                                  Échéance
-                                </h4>
-                              </div>
-                              <p className="text-sm font-bold" style={{ color: themeColors.colors.primary[800] }}>
-                                {format(new Date(r.dueDate), "dd MMM yyyy", { locale: fr })}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex flex-col gap-3 min-w-[200px]">
-                      <Button 
-                        variant="outline" 
-                            onClick={() => {
-                              setSelectedEmployeeForInfo(r.employeeId)
-                              setShowEmployeeInfo(true)
-                            }}
-                            className="w-full transition-all duration-500 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
-                            style={{
                               borderColor: themeColors.colors.primary[300],
-                              color: themeColors.colors.primary[700],
-                              background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
-                              boxShadow: `0 4px 12px -4px ${themeColors.colors.primary[500]}20`
-                            }}
+                              boxShadow: `0 2px 4px -2px ${themeColors.colors.primary[500]}20`
+                            }}>
+                              📅 Date visite: {format(new Date(r.dateSouhaitee), 'dd/MM/yyyy', { locale: fr })}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-slate-700 dark:text-slate-300" style={{
+                                background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`,
+                                borderColor: themeColors.colors.primary[300],
+                                boxShadow: `0 2px 4px -2px ${themeColors.colors.primary[500]}20`
+                              }}>
+                                <Phone className="h-3 w-3" />
+                                📱 +212 6 41 79 85 43
+                              </span>
+                              {r.visitType && (
+                                <span className="px-2 py-1 rounded-full" style={{background:`linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})`, color: themeColors.colors.primary[800]}}>
+                                  {r.visitType === 'SPONTANEE' ? 'Spontanée' : r.visitType === 'PERIODIQUE' ? 'Périodique' : r.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' : r.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" : r.visitType === 'REPRISE' ? 'Reprise' : r.visitType === 'EMBAUCHE' ? 'Embauche' : r.visitType}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-3 py-1.5 text-xs font-semibold rounded-full border-2 ${
+                            r.status === 'CONFIRMED' ? 'border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30' :
+                            r.status === 'PROPOSED' ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30' :
+                            r.status === 'PENDING' ? 'border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30' :
+                            'border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30'
+                          }`}>
+                            {r.status === 'CONFIRMED' ? 'Confirmé' : r.status === 'PROPOSED' ? 'Proposé' : r.status === 'PENDING' ? 'En attente' : r.status}
+                          </span>
+                          <Button
+                            variant="outline"
+                            onClick={() => { setSelectedEmployeeForInfo(r.employeeId); setShowEmployeeInfo(true); }}
+                            className="border-slate-300 dark:border-slate-600"
                           >
-                            <User className="h-4 w-4 mr-2 transition-transform duration-300 group-hover:scale-110" />
-                        Infos salarié
-                      </Button>
+                            Infos salarié
+                          </Button>
+                          
+                          {/* Show REPRISE info button for REPRISE visits */}
+                          {r.visitType === 'REPRISE' && (
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedRequestForCertificates(r)
+                                setRepriseInfoDialogOpen(true)
+                              }}
+                              className="border-orange-300 dark:border-orange-600 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                            >
+                              <Info className="h-4 w-4 mr-2" />
+                              Voir détails reprise
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -730,45 +671,42 @@ export default function RhVisitesPage() {
         )}
       </div>
 
-      {/* Reprise details dialog */}
-      <Dialog open={repriseDialogOpen} onOpenChange={setRepriseDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
-          <DialogHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 border-b border-slate-200/60 dark:border-slate-700/60">
-            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Détails du cas de reprise</DialogTitle>
-            <DialogDescription className="text-slate-600 dark:text-slate-400">Ajoutez les informations spécifiques (vous pourrez affiner plus tard).</DialogDescription>
+      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={selectedEmployeeForInfo || 0} />
+
+
+
+      {/* REPRISE Info Box Dialog */}
+      <Dialog open={repriseInfoDialogOpen} onOpenChange={setRepriseInfoDialogOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
+              Détails de la visite de reprise
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
+              Informations complètes sur la demande de visite médicale de reprise
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-slate-700 dark:text-slate-300 font-medium">Détails</Label>
-              <Textarea 
-                value={repriseDetails} 
-                onChange={(e)=>setRepriseDetails(e.target.value)} 
-                placeholder="Décrivez les circonstances…" 
-                className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md resize-none"
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/60 dark:border-slate-700/60">
-            <Button 
-              variant="outline" 
-              onClick={()=>setRepriseDialogOpen(false)}
-              className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-300"
-            >
-              Fermer
-            </Button>
-            <Button 
-              onClick={createReprise} 
-              className="text-white shadow-lg hover:shadow-xl transition-all duration-300"
-              style={{background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`}}
-            >
-              Créer
-            </Button>
-          </DialogFooter>
+          {selectedRequestForCertificates && (
+            <RepriseVisitInfoBox
+              visitRequest={{
+                id: selectedRequestForCertificates.id,
+                employeeName: selectedRequestForCertificates.employeeName,
+                employeeEmail: selectedRequestForCertificates.employeeEmail ?? '',
+                motif: selectedRequestForCertificates.motif,
+                dateSouhaitee: selectedRequestForCertificates.dateSouhaitee,
+                heureSouhaitee: selectedRequestForCertificates.heureSouhaitee,
+                status: selectedRequestForCertificates.status,
+                visitType: selectedRequestForCertificates.visitType ?? '',
+                repriseCategory: selectedRequestForCertificates.repriseCategory || '',
+                repriseDetails: selectedRequestForCertificates.repriseDetails || '',
+                hasMedicalCertificates: selectedRequestForCertificates.hasMedicalCertificates || false,
+                createdAt: selectedRequestForCertificates.createdAt
+              }}
+              onClose={() => setRepriseInfoDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
-
-      <EmployeeInfoDialog open={showEmployeeInfo} onOpenChange={setShowEmployeeInfo} employeeId={selectedEmployeeForInfo || 0} />
     </div>
   )
 }

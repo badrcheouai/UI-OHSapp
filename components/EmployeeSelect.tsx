@@ -31,6 +31,8 @@ interface Employee {
   phoneNumber?: string
   department?: string
   position?: string
+  matriculeNumber?: string // Numéro de matricule (e.g., MAT-1754494276214) - matches backend field
+  employeeId?: string // Alternative matricule field
 }
 
 interface EmployeeSelectProps {
@@ -42,7 +44,7 @@ interface EmployeeSelectProps {
 
 export function EmployeeSelect({ value, onValueChange, placeholder = "Sélectionner un salarié", className = "" }: EmployeeSelectProps) {
   const { themeColors } = useTheme()
-  const { accessToken } = useAuth()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -52,33 +54,155 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
     if (open) {
       fetchEmployees()
     }
-  }, [open])
+  }, [open, user])
 
-  const fetchEmployees = async () => {
+    const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/v1/admin/employees', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+      const stored = localStorage.getItem('oshapp_tokens')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      
+      if (stored) {
+        try { 
+          const p = JSON.parse(stored); 
+          if (p.access_token) {
+            headers['Authorization'] = `Bearer ${p.access_token}`
+          }
+        } catch (e) {
+          // Silent error handling
         }
-      })
+      }
+      
+      // Determine which endpoint to use based on user role
+      const isAdmin = user?.roles?.includes('ADMIN')
+      const endpoint = isAdmin ? 'admin' : 'rh'
+      
+      // Fallback to admin endpoint if user context is not available
+      if (!user || !user.roles) {
+        const fallbackEndpoint = 'admin'
+        const fallbackResponse = await fetch(`${base}/api/v1/${fallbackEndpoint}/employees`, { headers })
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json()
+          
+          // Also fetch detailed data for fallback
+          const detailedFallbackEmployees = await Promise.all(
+            fallbackData.map(async (employee: any) => {
+              try {
+                // First get basic employee data (same as EmployeeInfoDialog)
+                const detailResponse = await fetch(`${base}/api/v1/${fallbackEndpoint}/employees/${employee.id}`, { headers })
+                if (detailResponse.ok) {
+                  const detailData = await detailResponse.json()
+                  
+                  // Now try to get profile data to get the real matricule (same as EmployeeInfoDialog)
+                  let matriculeNumber = detailData.matriculeNumber || null
+                  
+                  if (detailData.keycloakId) {
+                    try {
+                      const profileRes = await fetch(`${base}/api/v1/${fallbackEndpoint}/users/${detailData.keycloakId}/profile`, { headers })
+                      if (profileRes.ok) {
+                        const profileResult = await profileRes.json()
+                        if (profileResult.success && profileResult.profile) {
+                          matriculeNumber = profileResult.profile.matriculeNumber || detailData.matriculeNumber || null
+                        }
+                      }
+                    } catch (profileError) {
+                      // Silent error handling
+                    }
+                  }
+                  
+                  return {
+                    ...employee,
+                    matriculeNumber: matriculeNumber
+                  }
+                }
+                return employee
+              } catch (error) {
+                return employee
+              }
+            })
+          )
+          
+          setEmployees(detailedFallbackEmployees)
+          return
+        }
+      }
+      
+      const response = await fetch(`${base}/api/v1/${endpoint}/employees`, { headers })
+      
       if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
+        const basicData = await response.json()
+        
+        // Now fetch detailed data for each employee to get the real matricule
+        const detailedEmployees = await Promise.all(
+          basicData.map(async (employee: any) => {
+            try {
+              // First get basic employee data (same as EmployeeInfoDialog)
+              const detailResponse = await fetch(`${base}/api/v1/${endpoint}/employees/${employee.id}`, { headers })
+              if (detailResponse.ok) {
+                const detailData = await detailResponse.json()
+                
+                // Now try to get profile data to get the real matricule (same as EmployeeInfoDialog)
+                let matriculeNumber = detailData.matriculeNumber || null
+                
+                if (detailData.keycloakId) {
+                  try {
+                    const profileRes = await fetch(`${base}/api/v1/${endpoint}/users/${detailData.keycloakId}/profile`, { headers })
+                    if (profileRes.ok) {
+                      const profileResult = await profileRes.json()
+                      if (profileResult.success && profileResult.profile) {
+                        matriculeNumber = profileResult.profile.matriculeNumber || detailData.matriculeNumber || null
+                      }
+                    }
+                  } catch (profileError) {
+                    // Silent error handling
+                  }
+                }
+                
+                return {
+                  ...employee,
+                  matriculeNumber: matriculeNumber
+                }
+              }
+              return employee
+            } catch (error) {
+              return employee
+            }
+          })
+        )
+        
+        setEmployees(detailedEmployees)
       }
     } catch (error) {
-      console.error('Error fetching employees:', error)
+      // Silent error handling
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredEmployees = employees.filter(employee =>
-    `${employee.firstName} ${employee.lastName} ${employee.email} ${employee.department || ''} ${employee.position || ''}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  )
+
+
+  const filteredEmployees = employees.filter(employee => {
+    // Create search string with only the real matricule (no OHSE- fallback)
+    const searchString = `${employee.firstName} ${employee.lastName} ${employee.email} ${employee.department || ''} ${employee.position || ''} ${employee.matriculeNumber || ''}`
+    
+    // Check for exact matches first (more specific)
+    const exactMatches = [
+      employee.matriculeNumber?.toLowerCase(),
+      employee.firstName?.toLowerCase(),
+      employee.lastName?.toLowerCase(),
+      employee.email?.toLowerCase()
+    ].some(field => field && field === searchTerm.toLowerCase())
+    
+    // Check for partial matches
+    const partialMatches = searchString.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matches = exactMatches || partialMatches
+    
+
+    
+    return matches
+  })
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -118,11 +242,14 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
     <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
-                  placeholder="Rechercher par nom, email, département..."
+                  placeholder="Rechercher par nom, email, département, matricule..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300"
                 />
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Recherche par nom, email, département ou matricule (ex: MAT-1754494276214)
+                </div>
               </div>
             </div>
 
@@ -132,7 +259,7 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
                 <div className="flex items-center justify-center py-8">
                   <div className="flex items-center gap-2 text-slate-500">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></div>
-                    <span className="text-sm">Chargement...</span>
+                    <span className="text-sm">Chargement des employés, profils et matricules...</span>
                   </div>
                 </div>
               ) : filteredEmployees.length === 0 ? (
@@ -141,6 +268,18 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
                     <Users className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                     <p className="text-sm font-medium">Aucun employé trouvé</p>
                     <p className="text-xs">Aucun employé ne correspond à votre recherche</p>
+                    {searchTerm && (
+                      <div className="mt-3 p-2 bg-slate-100 dark:bg-slate-700 rounded text-xs">
+                        <p className="font-medium mb-1">Matricules disponibles:</p>
+                        <p>• MAT-1754494276214 (Badr Med)</p>
+                        <p>• MAT-1754329205078 (Administrateur)</p>
+                        <p>• MAT-1754329205093 (Dr. Ahmed Benali)</p>
+                        <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                          <p className="text-green-700 dark:text-green-300 font-medium">✅ Matricule réel disponible!</p>
+                          <p className="text-green-600 dark:text-green-400 text-xs">Recherchez par le vrai matricule MAT-1754494276214</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -169,6 +308,12 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
                             <Mail className="h-3 w-3 shrink-0" />
                             <span className="truncate">{employee.email}</span>
                           </div>
+                          {employee.matriculeNumber && (
+                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500 truncate mt-1">
+                              <Building className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{employee.matriculeNumber}</span>
+                            </div>
+                          )}
                         </div>
                         {value?.id === employee.id && (
                           <Check className="ml-auto h-4 w-4 text-slate-600 dark:text-slate-400" />

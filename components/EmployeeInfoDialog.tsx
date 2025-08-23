@@ -148,7 +148,7 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                 birthDate: profileData.birthDate,
                 address: profileData.address,
                 hireDate: profileData.hireDate || employeeDataWithManagers.hireDate,
-                position: profileData.profession || employeeDataWithManagers.position,
+                position: employeeDataWithManagers.position || profileData.profession,
                 phoneNumber: profileData.phoneNumber || employeeDataWithManagers.phoneNumber,
                 department: profileData.department || employeeDataWithManagers.department
               }
@@ -451,7 +451,7 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                       <User className="h-3 w-3 text-white" />
                     </div>
                     <div>
-                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">Profession</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">Poste</span>
                       <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.position || '-'}</div>
                     </div>
                   </div>

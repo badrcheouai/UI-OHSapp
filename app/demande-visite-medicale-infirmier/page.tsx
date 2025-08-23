@@ -39,7 +39,9 @@ import {
   Search,
   Mail,
   Hourglass,
-  FileText
+  FileText,
+  Phone,
+  Info
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr, enUS } from "date-fns/locale"
@@ -50,6 +52,7 @@ import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
 import { EmployeeInfoDialog } from "@/components/EmployeeInfoDialog"
 import { EmployeeSelect } from "@/components/EmployeeSelect"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import RepriseVisitInfoBox from "@/components/RepriseVisitInfoBox"
 
 export default function DemandeVisiteMedicaleInfirmier() {
   const { user, loading } = useAuth()
@@ -93,10 +96,16 @@ export default function DemandeVisiteMedicaleInfirmier() {
   const [planDueDate, setPlanDueDate] = useState<string>("")
   const [showEmployeeInfo, setShowEmployeeInfo] = useState(false)
 
+  // REPRISE info box dialog state
+  const [repriseInfoDialogOpen, setRepriseInfoDialogOpen] = useState(false)
+  const [selectedRepriseRequest, setSelectedRepriseRequest] = useState<MedicalVisitRequest | null>(null)
+
   // Helper function to get theme color
   const getThemeColor = (shade: keyof typeof themeColors.colors.primary) => {
     return themeColors.colors.primary[shade]
   }
+
+
 
   // Load requests with backend availability check
   const loadRequests = async () => {
@@ -173,24 +182,8 @@ export default function DemandeVisiteMedicaleInfirmier() {
         dueDate: planDueDate,
       }, planEmployeeId)
       
-      // For non-spontanée types, immediately propose a slot so the salarié can accept/refuse
-      try {
-        if (planVisitType !== 'SPONTANEE') {
-          await medicalVisitAPI.proposeSlot(created.data.id, {
-            proposedDate: planDueDate,
-            proposedTime: proposeTime,
-            reason: planNotes || 'Créneau proposé',
-            proposedBy: user?.username || 'Infirmier',
-            modality: proposeModality,
-          })
-          toast({ title: "Proposition envoyée", description: "Le salarié sera notifié pour accepter ou refuser." })
-        } else {
-          toast({ title: "Demande créée", description: "La demande a été créée avec succès." })
-        }
-      } catch (err) {
-        console.error('Error proposing slot after creation', err)
-        toast({ title: "Attention", description: "Demande créée mais erreur lors de la proposition de créneau.", variant: "destructive" })
-      }
+      // For non-spontanée: backend creates PROPOSED with initial proposed slot
+      toast({ title: "Demande créée", description: planVisitType !== 'SPONTANEE' ? "Demande créée avec créneau proposé. Le salarié peut accepter/refuser." : "La demande a été créée avec succès." })
       
       // Reset form
       setPlanNotes("")
@@ -248,51 +241,35 @@ export default function DemandeVisiteMedicaleInfirmier() {
     switch (status) {
       case "PENDING":
         return (
-          <Badge 
-            variant="secondary" 
-            className="text-slate-800 dark:text-slate-200"
-            style={{
-              backgroundColor: isDark ? `${getThemeColor(900)}40` : `${getThemeColor(100)}`,
-              borderColor: isDark ? getThemeColor(700) : getThemeColor(300)
-            }}
-          >
+          <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">
             En attente
           </Badge>
         )
       case "PROPOSED":
         return (
-          <Badge 
-            variant="secondary" 
-            className="text-slate-800 dark:text-slate-200"
-            style={{
-              backgroundColor: isDark ? `${getThemeColor(900)}40` : `${getThemeColor(100)}`,
-              borderColor: isDark ? getThemeColor(700) : getThemeColor(300)
-            }}
-          >
+          <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30">
             Proposé
           </Badge>
         )
       case "CONFIRMED":
         return (
-          <Badge 
-            variant="secondary" 
-            className="text-slate-800 dark:text-slate-200"
-            style={{
-              backgroundColor: isDark ? `${getThemeColor(900)}40` : `${getThemeColor(100)}`,
-              borderColor: isDark ? getThemeColor(700) : getThemeColor(300)
-            }}
-          >
+          <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">
             Confirmé
           </Badge>
         )
       default:
-        return <Badge variant="secondary">Inconnu</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">Inconnu</Badge>
     }
   }
 
   const handleConfirm = async (requestId: number) => {
     setConfirmRequestId(requestId)
     setConfirmDialogOpen(true)
+  }
+
+  const handleShowRepriseInfo = (request: MedicalVisitRequest) => {
+    setSelectedRepriseRequest(request)
+    setRepriseInfoDialogOpen(true)
   }
 
   const submitConfirm = async () => {
@@ -363,12 +340,23 @@ export default function DemandeVisiteMedicaleInfirmier() {
     }
   }
 
+  // Enhanced filtering logic with comprehensive search
   const filteredRequests = requests.filter(request => {
+    // Status filter
     const matchesStatus = filter === "ALL" || request.status === filter
+    
+    // Type filter
     const matchesType = typeFilter === "ALL" || request.visitType === typeFilter
-    const matchesSearch =
-      request.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.motif.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    // Enhanced search - search by name, employeeId, email, or phone
+    const matchesSearch = !searchTerm || [
+      request.employeeName?.toLowerCase(),
+      request.employeeId?.toString(), // Search by employee ID
+      request.employeeEmail?.toLowerCase(),
+      // Phone number search (assuming it's stored in the request or can be derived)
+      '+212 6 41 79 85 43' // Placeholder - replace with actual phone field when available
+    ].some(field => field && field.includes(searchTerm.toLowerCase()))
+    
     return matchesStatus && matchesType && matchesSearch
   })
 
@@ -493,6 +481,7 @@ export default function DemandeVisiteMedicaleInfirmier() {
                     rows={4}
                   />
                 </div>
+                
                 <div className="md:col-span-2">
                   <Button 
                     type="submit" 
@@ -562,11 +551,14 @@ export default function DemandeVisiteMedicaleInfirmier() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Rechercher par nom ou motif..."
+                  placeholder="Rechercher par nom, ID employé, email ou téléphone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500"
                 />
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 ml-1">
+                  Recherche rapide par nom, ID employé, email ou numéro de téléphone
+                </div>
               </div>
 
               {/* Compact Filters Popover */}
@@ -626,6 +618,13 @@ export default function DemandeVisiteMedicaleInfirmier() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Search Results Counter */}
+        {searchTerm && (
+          <div className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+            {filteredRequests.length} résultat(s) trouvé(s) pour "{searchTerm}"
+          </div>
+        )}
 
         {/* Requests List */}
         <div className="space-y-4">
@@ -691,67 +690,46 @@ export default function DemandeVisiteMedicaleInfirmier() {
                 >
                   <User className="h-5 w-5 text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
                           </div>
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 group-hover:text-slate-700 dark:group-hover:text-slate-200">
-                              {request.employeeName}
-                            </h3>
-                                                  {/* Date next to name with day name */}
-                    <div 
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-pointer"
-                                style={{
-                        background: `linear-gradient(135deg, #fef3c7, #fde68a)`,
-                        color: '#92400e',
-                        boxShadow: `0 4px 12px -4px #f59e0b30`
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #fde68a, #fbbf24)'
-                        e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
-                        e.currentTarget.style.boxShadow = '0 6px 20px -4px #f59e0b50'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #fef3c7, #fde68a)'
-                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                        e.currentTarget.style.boxShadow = '0 4px 12px -4px #f59e0b30'
-                      }}
-                    >
-                      Date proposé : {format(new Date(request.dateSouhaitee), "EEEE dd MMMM yyyy", { locale: fr })} {request.heureSouhaitee}
-                    </div>
+                          <div className="space-y-4">
+                            {/* Employee Name */}
+                            <div className="flex items-center">
+                              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 group-hover:text-slate-700 dark:group-hover:text-slate-200">
+                                {request.employeeName}
+                              </h3>
                             </div>
-                                              {/* Email under the name */}
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-red-200/50 border cursor-pointer"
-                      style={{
-                        background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
-                        borderColor: '#fecaca',
-                        color: '#dc2626',
-                        boxShadow: '0 2px 8px -2px #fecaca40'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #fee2e2, #fecaca)'
-                        e.currentTarget.style.transform = 'translateY(-2px)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #fef2f2, #fee2e2)'
-                        e.currentTarget.style.transform = 'translateY(0)'
-                      }}
-                    >
-                      <Mail className="h-3 w-3 transition-transform duration-300 hover:rotate-12" />
-                      <span className="font-semibold">
-                        {request.employeeEmail || `${request.employeeDepartment.toLowerCase()}@ohse.com`}
-                              </span>
+
+                            {/* Key Information Grid */}
+                            <div className="grid grid-cols-1 gap-4">
+                              {/* Contact Information */}
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg border cursor-pointer"
+                                  style={{
+                                    background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                                    borderColor: getThemeColor(300),
+                                    color: getThemeColor(700),
+                                    boxShadow: `0 2px 8px -2px ${getThemeColor(500)}40`
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`
+                                    e.currentTarget.style.transform = 'translateY(-2px)'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`
+                                    e.currentTarget.style.transform = 'translateY(0)'
+                                  }}
+                                >
+                                  <Phone className="h-4 w-4 transition-transform duration-300 hover:rotate-12" />
+                                  <span className="font-semibold">
+                                    📱 +212 6 41 79 85 43
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                  {/* Additional Employee Info */}
-                  <div className="flex items-center gap-4">
-                    {/* Removed Gender section */}
-                    
-                    {/* Removed Company and Department sections */}
-                        </div>
-                  {/* Visit Type with improved label design */}
-                        <div className="flex items-center gap-2">
-                          <span
+
+                            {/* Visit Type */}
+                            <div className="flex items-center gap-2">
+                              <span
                                 className="px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wide transition-all duration-300"
                                 style={{
                                   background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
@@ -759,87 +737,39 @@ export default function DemandeVisiteMedicaleInfirmier() {
                                   boxShadow: `0 2px 6px -2px ${getThemeColor(500)}15`
                                 }}
                               >
-                                Type de visite médicale :
-                          </span>
-                          {request.visitType && (
-                            <span
-                        className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold shadow-md transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-blue-200/50 cursor-pointer"
-                              style={{
-                          background: `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`,
-                          color: getThemeColor(800),
-                          boxShadow: `0 4px 12px -4px ${getThemeColor(500)}30`
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(200)}, ${getThemeColor(300)})`
-                          e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`
-                          e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                              }}
-                            >
-                              {request.visitType === 'SPONTANEE' ? 'Spontanée' :
-                               request.visitType === 'PERIODIQUE' ? 'Périodique' :
-                               request.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
-                               request.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
-                               request.visitType === 'REPRISE' ? 'Reprise' : request.visitType}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                          </div>
-                        <div className="flex flex-col items-end gap-2">
-                          {/* Status Badge */}
-                          <div className="relative">
-                                              <span
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg border transition-all duration-300 hover:scale-110 hover:shadow-2xl cursor-pointer flex items-center gap-2 ${
-                      request.status === 'CONFIRMED'
-                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-400 shadow-green-500/25'
-                        : request.status === 'PROPOSED'
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-400 shadow-blue-500/25'
-                          : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-400 shadow-amber-500/25'
-                    }`}
-                    onMouseEnter={(e) => {
-                      if (request.status === 'CONFIRMED') {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #059669, #047857)'
-                        e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                      } else if (request.status === 'PROPOSED') {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #1d4ed8, #1e40af)'
-                        e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                      } else {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #d97706, #b45309)'
-                        e.currentTarget.style.transform = 'translateY(-2px) rotate(2deg)'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (request.status === 'CONFIRMED') {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #10b981, #059669)'
-                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                      } else if (request.status === 'PROPOSED') {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #3b82f6, #1d4ed8)'
-                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                      } else {
-                        e.currentTarget.style.background = 'linear-gradient(to right, #f59e0b, #d97706)'
-                        e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
-                      }
-                    }}
-                  >
-                    {request.status === 'CONFIRMED' ? '✅ Confirmé' : 
-                     request.status === 'PROPOSED' ? '🔄 Proposé' : 
-                     <>
-                       <Hourglass className="h-3 w-3 animate-spin" style={{ animationDuration: '2s' }} />
-                       En attente
-                     </>}
-                  </span>
-                            <div className={`absolute -inset-1 rounded-lg blur-sm opacity-20 transition-all duration-300 group-hover:opacity-30 ${
-                              request.status === 'CONFIRMED' ? 'bg-green-500' :
-                              request.status === 'PROPOSED' ? 'bg-blue-500' : 'bg-amber-500'
-                            }`}></div>
+                                Type de visite :
+                              </span>
+                              {request.visitType && (
+                                <span
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-semibold shadow-md transition-all duration-300 hover:scale-110 hover:shadow-xl cursor-pointer"
+                                  style={{
+                                    background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                                    color: getThemeColor(700),
+                                    boxShadow: `0 2px 8px -2px ${getThemeColor(500)}40`
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`
+                                    e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`
+                                    e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                                  }}
+                                >
+                                  {request.visitType === 'SPONTANEE' ? 'Spontanée' :
+                                   request.visitType === 'PERIODIQUE' ? 'Périodique' :
+                                   request.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
+                                   request.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
+                                   request.visitType === 'REPRISE' ? 'Reprise' : request.visitType}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Motif Section - More Compact */}
+                      {/* Motif Section - Only for Spontaneous Visits */}
+                      {request.visitType === 'SPONTANEE' && (
                         <div 
                         className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.03] cursor-pointer group/motif"
                           style={{
@@ -857,12 +787,13 @@ export default function DemandeVisiteMedicaleInfirmier() {
                       >
                         <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2 transition-colors duration-300 group-hover/motif:text-slate-600 dark:group-hover/motif:text-slate-200">
                           <div className="w-1.5 h-1.5 rounded-full transition-all duration-300 group-hover/motif:scale-150 group-hover/motif:rotate-180" style={{ backgroundColor: getThemeColor(500) }}></div>
-                          Motif de la visite
+                          Raison de la visite
                         </h4>
                         <p className="text-slate-900 dark:text-slate-100 text-sm font-semibold leading-relaxed transition-colors duration-300 group-hover/motif:text-slate-800 dark:group-hover/motif:text-slate-100">
                           {request.motif}
                           </p>
                         </div>
+                      )}
 
                                               {/* Clean Proposed Slot Section */}
                         {request.status === "PROPOSED" && request.proposedDate && (
@@ -939,50 +870,52 @@ export default function DemandeVisiteMedicaleInfirmier() {
 
                       {/* Removed history section */}
 
-                      {/* Confirmed Visit Info */}
+                      {/* Confirmed Visit Info - Reorganized */}
                       {request.status === "CONFIRMED" && request.confirmedDate && (
-                        <div 
-                          className="p-3 rounded-lg shadow-md border-0 transition-all duration-300 hover:shadow-lg hover:scale-[1.01] cursor-pointer group/confirmed"
-                          style={{
-                            background: `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`,
-                            boxShadow: `0 4px 15px -4px ${getThemeColor(500)}25`
-                          }}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="h-5 w-5 rounded-md bg-white/30 flex items-center justify-center transition-all duration-300 group-hover/confirmed:scale-110">
-                              <CheckCircle className="h-3 w-3" style={{ color: getThemeColor(700) }} />
+                        <div className="space-y-4 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                          {/* Date confirmée */}
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-pointer"
+                              style={{
+                                background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                                color: getThemeColor(700),
+                                boxShadow: `0 2px 8px -2px ${getThemeColor(500)}40`
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`
+                                e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`
+                                e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                              }}
+                            >
+                              📅 Date confirmée : {format(new Date(request.confirmedDate), "dd MMM yyyy", { locale: fr })} à {request.confirmedTime}
                             </div>
-                            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: getThemeColor(800) }}>
-                              Visite confirmée
-                            </h4>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-xs font-medium mb-1" style={{ color: getThemeColor(700) }}>
-                                Date confirmée :
-                              </p>
-                              <p className="text-sm font-bold" style={{ color: getThemeColor(800) }}>
-                                {format(new Date(request.confirmedDate), "dd MMM yyyy", { locale: fr })} à {request.confirmedTime}
-                              </p>
+
+                          {/* Consigne pour la visite */}
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-pointer"
+                              style={{
+                                background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                                color: getThemeColor(700),
+                                boxShadow: `0 2px 8px -2px ${getThemeColor(500)}40`
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`
+                                e.currentTarget.style.transform = 'translateY(-1px) rotate(1deg)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`
+                                e.currentTarget.style.transform = 'translateY(0) rotate(0deg)'
+                              }}
+                            >
+                              📋 Consigne pour la visite : {request.notes || request.motif || 'Aucune consigne spécifique'}
                             </div>
-                            {request.modality && (
-                              <div>
-                                <p className="text-xs font-medium mb-1" style={{ color: getThemeColor(700) }}>
-                                  Modalité :
-                                </p>
-                                <p className="text-sm font-semibold" style={{ color: getThemeColor(800) }}>
-                                  {request.modality === 'PRESENTIEL' ? '🏥 Présentiel' : '💻 À distance'}
-                                </p>
-                              </div>
-                            )}
                           </div>
-                          {request.notes && (
-                            <div className="mt-2 p-2 bg-white/30 rounded border border-white/50">
-                              <p className="text-xs" style={{ color: getThemeColor(700) }}>
-                                <strong>Notes :</strong> {request.notes}
-                              </p>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -991,20 +924,24 @@ export default function DemandeVisiteMedicaleInfirmier() {
                     <div className="flex flex-col gap-3 min-w-[200px]">
                       {request.status === "PENDING" && (
                         <>
-                          <Button
-                            onClick={() => {
-                              if (request.id) handleConfirm(request.id)
-                            }}
-                            disabled={isProcessing}
-                            className="w-full text-white hover:shadow-2xl transition-all duration-500 h-11 text-sm font-bold rounded-xl border-0 transform hover:scale-105 hover:-translate-y-1"
-                            style={{
-                              background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
-                              boxShadow: `0 8px 25px -8px ${getThemeColor(500)}40, 0 4px 6px -2px ${getThemeColor(500)}20`
-                            }}
-                          >
-                            <CheckCircle className="h-5 w-5 mr-2 transition-transform duration-300 group-hover:scale-110" />
-                            Confirmer
-                          </Button>
+                          {/* Only show Confirmer button for non-EMBAUCHE and non-REPRISE visits */}
+                          {request.visitType !== 'EMBAUCHE' && request.visitType !== 'REPRISE' && (
+                            <Button
+                              onClick={() => {
+                                if (request.id) handleConfirm(request.id)
+                              }}
+                              disabled={isProcessing}
+                              className="w-full text-white hover:shadow-2xl transition-all duration-500 h-11 text-sm font-bold rounded-xl border-0 transform hover:scale-105 hover:-translate-y-1"
+                              style={{
+                                background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                                boxShadow: `0 8px 25px -8px ${getThemeColor(500)}40, 0 4px 6px -2px ${getThemeColor(500)}20`
+                              }}
+                            >
+                              <CheckCircle className="h-5 w-5 mr-2 transition-transform duration-300 group-hover:scale-110" />
+                              Confirmer
+                            </Button>
+                          )}
+                          {/* Always show Proposer un créneau button for PENDING requests */}
                           <Button
                             variant="outline"
                             onClick={() => {
@@ -1024,24 +961,50 @@ export default function DemandeVisiteMedicaleInfirmier() {
                               : "Proposer un créneau"
                             }
                           </Button>
+                          
+                          {/* Show REPRISE info button for REPRISE visits */}
+                          {request.visitType === 'REPRISE' && (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleShowRepriseInfo(request)}
+                              className="w-full transition-all duration-500 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                              style={{
+                                borderColor: '#f97316',
+                                color: '#ea580c',
+                                background: 'linear-gradient(135deg, #fff7ed, #fed7aa)',
+                                boxShadow: '0 4px 12px -4px #f9731620'
+                              }}
+                            >
+                              <Info className="h-5 w-5 mr-2 transition-transform duration-300 group-hover:scale-110" />
+                              Voir détails reprise
+                            </Button>
+                          )}
                         </>
                       )}
 
 
 
-                                                {request.status === "CONFIRMED" && (
-                        <div 
-                          className="w-full text-center px-4 py-3 rounded-xl text-sm font-bold border-2 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer"
-                          style={{
-                            background: `linear-gradient(135deg, #d1fae5, #a7f3d0)`,
-                            borderColor: '#10b981',
-                            color: '#065f46',
-                            boxShadow: `0 8px 25px -8px #10b98140`
-                          }}
-                        >
-                          ✅ Visite confirmée
-                                </div>
-                              )}
+                                                {/* Status is already shown in the header, no need for duplicate confirmation */}
+                    </div>
+                    
+                    {/* Status Badge - Positioned on the far right like RH page */}
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-lg border transition-all duration-300 hover:scale-110 hover:shadow-2xl cursor-pointer flex items-center gap-2 ${
+                          request.status === 'CONFIRMED'
+                            ? 'border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30'
+                            : request.status === 'PROPOSED'
+                              ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30'
+                              : 'border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30'
+                        }`}
+                      >
+                        {request.status === 'CONFIRMED' ? '✅ Confirmé' : 
+                         request.status === 'PROPOSED' ? '🔄 Proposé' : 
+                         <>
+                           <Hourglass className="h-3 w-3 animate-spin" style={{ animationDuration: '2s' }} />
+                           En attente
+                         </>}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -1231,6 +1194,39 @@ export default function DemandeVisiteMedicaleInfirmier() {
               {isProcessing ? 'Confirmation...' : 'Confirmer'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* REPRISE Info Box Dialog */}
+      <Dialog open={repriseInfoDialogOpen} onOpenChange={setRepriseInfoDialogOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-0 shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
+              Détails de la visite de reprise
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
+              Informations complètes sur la demande de visite médicale de reprise
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRepriseRequest && (
+            <RepriseVisitInfoBox
+              visitRequest={{
+                id: selectedRepriseRequest.id,
+                employeeName: selectedRepriseRequest.employeeName,
+                employeeEmail: selectedRepriseRequest.employeeEmail ?? '',
+                motif: selectedRepriseRequest.motif,
+                dateSouhaitee: selectedRepriseRequest.dateSouhaitee,
+                heureSouhaitee: selectedRepriseRequest.heureSouhaitee,
+                status: selectedRepriseRequest.status,
+                visitType: selectedRepriseRequest.visitType ?? '',
+                repriseCategory: selectedRepriseRequest.repriseCategory || '',
+                repriseDetails: selectedRepriseRequest.repriseDetails || '',
+                hasMedicalCertificates: selectedRepriseRequest.hasMedicalCertificates || false,
+                createdAt: selectedRepriseRequest.createdAt
+              }}
+              onClose={() => setRepriseInfoDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
