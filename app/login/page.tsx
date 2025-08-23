@@ -11,7 +11,7 @@ import { useTheme } from "@/contexts/ThemeContext"
 import { ThemeSelector } from "@/components/theme-selector"
 
 export default function LoginPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, accessToken } = useAuth()
   const router = useRouter()
   const [language, setLanguage] = useState<"en" | "fr">("fr")
   const searchParams = useSearchParams()
@@ -19,13 +19,35 @@ export default function LoginPage() {
   const { themeColors } = useTheme()
 
   useEffect(() => {
-    // Only redirect if user is not verified (needs activation)
-    if (!loading && user && user.emailVerified === false) {
-      router.replace("/auth/activation")
-      return
+    // Re-check verification server-side before redirecting
+    const recheckAndMaybeRedirect = async () => {
+      if (loading || !user || !user.sub) return
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081"
+      try {
+        if (!accessToken) return
+        const res = await fetch(`${API_URL}/api/v1/admin/keycloak/users/${user.sub}/profile`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const verified = !!(data?.profile?.emailVerified)
+          if (!verified) {
+            router.replace("/auth/activation")
+            return
+          }
+        }
+      } catch (_) {
+        // Ignore and fall back to token claim
+      }
+      if (user && user.emailVerified === false) {
+        router.replace("/auth/activation")
+      }
     }
-    // Don't auto-redirect verified users - let the login form handle it with animation
-  }, [user, loading, router])
+    recheckAndMaybeRedirect()
+  }, [user, loading, accessToken, router])
 
   if (loading) {
     return (
@@ -164,7 +186,7 @@ export default function LoginPage() {
               ></div>
             </div>
             <div className="flex flex-col animate-fade-in" style={{ animationDelay: "0.3s" }}>
-              <span className="text-xl font-bold text-foreground dark:text-white tracking-tight">OHSE CAPITAL</span>
+              <span className="text-xl font-bold text-foreground dark:text-white tracking-tight">OSHapp</span>
             </div>
           </div>
 
@@ -246,7 +268,7 @@ export default function LoginPage() {
 
             {/* Typography */}
             <h2 className="text-6xl font-bold mb-8 drop-shadow-lg animate-fade-in tracking-tight" style={{ animationDelay: "0.5s" }}>
-              OHSE CAPITAL
+              OSHapp
             </h2>
 
             <p

@@ -116,7 +116,7 @@ const translations = {
     address: "Address",
     company: "Company",
     hireDate: "Hire Date",
-    profession: "Profession",
+    profession: "Position",
     phoneNumber: "Phone Number",
     department: "Department",
     
@@ -268,7 +268,7 @@ const translations = {
     address: "Adresse",
     company: "Entreprise",
     hireDate: "Date d'embauche",
-    profession: "Profession",
+    profession: "Poste",
     phoneNumber: "Téléphone",
     department: "Département",
     
@@ -757,7 +757,8 @@ export default function AdminUsersPage() {
 
   // Bulk import state
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false)
-  const [bulkImportData, setBulkImportData] = useState("")
+  const [excelEmployees, setExcelEmployees] = useState<any[]>([])
+  const [excelFileName, setExcelFileName] = useState("")
   const [importResults, setImportResults] = useState<any[]>([])
   const [isImporting, setIsImporting] = useState(false)
 
@@ -899,21 +900,39 @@ export default function AdminUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      // First, fetch basic user data from Keycloak
-      const response = await fetch(`/api/v1/admin/users`, {
+      
+      // Fetch both Keycloak users and employee data
+      const [keycloakResponse, employeesResponse] = await Promise.all([
+        fetch(`/api/v1/admin/users`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }),
+        fetch(`/api/v1/admin/employees`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       })
+      ])
 
-      if (response.status === 401) {
+      if (keycloakResponse.status === 401) {
         router.push("/login")
         return
       }
 
-      if (response.ok) {
-        const keycloakUsers = await response.json()
+      if (keycloakResponse.ok && employeesResponse.ok) {
+        const keycloakUsers = await keycloakResponse.json()
+        const employees = await employeesResponse.json()
+        
+        // Create a map of employees by email for quick lookup
+        const employeeMap = new Map()
+        employees.forEach((employee: any) => {
+          if (employee.email) {
+            employeeMap.set(employee.email.toLowerCase(), employee)
+          }
+        })
         
         // For each user, fetch their roles and profile data
         const enrichedUsers = await Promise.all(
@@ -960,13 +979,48 @@ export default function AdminUsersPage() {
                 console.warn(`Could not fetch profile for user ${keycloakUser.id}:`, profileError)
               }
               
-              // Combine Keycloak data with profile data
+              // Get employee data if available
+              let employeeData = employeeMap.get(keycloakUser.email?.toLowerCase()) || {}
+              
+              // If no employee data found in admin list, try to fetch from RH endpoint as fallback
+              if (Object.keys(employeeData).length === 0 && keycloakUser.email) {
+                try {
+                  const rhEmployeeResponse = await fetch(`/api/v1/rh/employees`, {
+                    headers: {
+                      'Authorization': `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json'
+                    }
+                  })
+                  
+                  if (rhEmployeeResponse.ok) {
+                    const rhEmployees = await rhEmployeeResponse.json()
+                    const rhEmployee = rhEmployees.find((emp: any) => 
+                      emp.email && emp.email.toLowerCase() === keycloakUser.email.toLowerCase()
+                    )
+                    if (rhEmployee) {
+                      employeeData = rhEmployee
+                      console.log('Found employee data from RH endpoint for:', keycloakUser.email)
+                    }
+                  }
+                } catch (rhError) {
+                  console.warn('Could not fetch employee data from RH endpoint:', rhError)
+                }
+              }
+              
+              // Debug logging for data mapping
+              if (keycloakUser.email === 'jean.dupont@company.com') {
+                console.log('Debug - Keycloak user:', keycloakUser)
+                console.log('Debug - Employee data:', employeeData)
+                console.log('Debug - Profile data:', profileData)
+              }
+              
+              // Combine Keycloak data with profile data and employee data
               const enrichedUser: AdminUser = {
                 id: keycloakUser.id,
                 username: keycloakUser.username || '',
                 email: keycloakUser.email || '',
-                firstName: keycloakUser.firstName || '',
-                lastName: keycloakUser.lastName || '',
+                firstName: keycloakUser.firstName || employeeData.firstName || '',
+                lastName: keycloakUser.lastName || employeeData.lastName || '',
                 roles: roles,
                 enabled: keycloakUser.enabled !== false,
                 emailVerified: keycloakUser.emailVerified === true,
@@ -978,25 +1032,26 @@ export default function AdminUsersPage() {
                 createdAt: keycloakUser.createdTimestamp ? new Date(keycloakUser.createdTimestamp).toISOString() : new Date().toISOString(),
                 keycloakId: keycloakUser.id,
                 
-                // Profile fields
-                dossierNumber: profileData.dossierNumber || undefined,
-                matriculeNumber: profileData.matriculeNumber || undefined,
-                gender: profileData.gender || undefined,
-                birthDate: profileData.birthDate || undefined,
-                address: profileData.address || undefined,
-                company: profileData.company || undefined,
-                hireDate: profileData.hireDate || undefined,
-                profession: profileData.profession || undefined,
-                phoneNumber: profileData.phoneNumber || undefined,
-                department: profileData.department || undefined,
+                // Profile fields - prioritize employee data over profile data
+                dossierNumber: employeeData.dossierNumber || profileData.dossierNumber || undefined,
+                matriculeNumber: employeeData.matriculeNumber || profileData.matriculeNumber || undefined,
+                gender: employeeData.gender || profileData.gender || undefined,
+                birthDate: employeeData.birthDate || profileData.birthDate || undefined,
+                address: employeeData.address || profileData.address || undefined,
+                company: employeeData.company || profileData.company || undefined,
+                hireDate: employeeData.hireDate || profileData.hireDate || undefined,
+                profession: employeeData.position || profileData.profession || undefined,
+                phoneNumber: employeeData.phoneNumber || profileData.phoneNumber || undefined,
+                department: employeeData.department || profileData.department || undefined,
                 
                 // SSO detection - check if user has Google federated identity
                 googleSSO: keycloakUser.federatedIdentities && keycloakUser.federatedIdentities.length > 0
               }
               
-
-              
-
+              // Debug logging for final enriched user
+              if (keycloakUser.email === 'jean.dupont@company.com') {
+                console.log('Debug - Final enriched user:', enrichedUser)
+              }
               
               return enrichedUser
             } catch (userError) {
@@ -1025,7 +1080,7 @@ export default function AdminUsersPage() {
         
         setUsers(enrichedUsers)
       } else {
-        throw new Error(`HTTP ${response.status}`)
+        throw new Error(`HTTP ${keycloakResponse.status}`)
       }
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -1293,6 +1348,33 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Sync data between admin and RH views
+  const syncData = async () => {
+    try {
+      // Call the sync endpoint
+      const response = await fetch('/api/v1/admin/sync-data', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        toast.success(result.message || "Données synchronisées avec succès")
+        // Refresh the user list after sync
+        await fetchUsers()
+      } else {
+        const error = await response.json()
+        toast.error(error.message || "Erreur lors de la synchronisation")
+      }
+    } catch (error) {
+      console.error("Error syncing data:", error)
+      toast.error("Erreur lors de la synchronisation")
+    }
+  }
+
   // Delete user with confirmation
   const deleteUser = async (userId: string) => {
     try {
@@ -1312,7 +1394,8 @@ export default function AdminUsersPage() {
       if (response.ok) {
         const result = await response.json()
         toast.success(result.message || "Utilisateur supprimé avec succès")
-        fetchUsers()
+        // Force refresh to ensure consistency
+        await fetchUsers()
       } else {
         const error = await response.json()
         toast.error(error.message || "Erreur lors de la suppression")
@@ -1382,143 +1465,170 @@ export default function AdminUsersPage() {
   }
 
   // Bulk import functions
-  const downloadTemplate = () => {
-    // Complete template with all profile information fields
-    // This template includes all the fields that are available in the user profile
-    // Matricule number format: MAT-XXXXXXXXX (e.g., MAT-1234567890)
-    const template = [
-      {
-        username: "john.doe",
-        email: "john.doe@company.com",
-        firstName: "John",
-        lastName: "Doe",
-        password: "SecurePassword123!", // Initial password for the user
-        roles: ["EMPLOYEE"],
-        // Personal Information
-        gender: "MALE", // MALE, FEMALE
-        birthDate: "1990-05-15", // YYYY-MM-DD format
-        address: "123 Rue de la Paix, 75001 Paris, France",
-        // Professional Information
-        company: "OHSE CAPITAL",
-        hireDate: "2023-01-15", // YYYY-MM-DD format
-        profession: "Software Engineer",
-        phoneNumber: "+33 1 23 45 67 89",
-        department: "IT",
-        dossierNumber: "OHSE-2023001", // Optional, will be auto-generated if not provided
-        matriculeNumber: "MAT-1234567890" // Optional, will be auto-generated if not provided
-      },
-      {
-        username: "jane.smith",
-        email: "jane.smith@company.com",
-        firstName: "Jane",
-        lastName: "Smith",
-        password: "SecurePassword123!", // Initial password for the user
-        roles: ["RESP_RH"],
-        // Personal Information
-        gender: "FEMALE",
-        birthDate: "1985-08-22",
-        address: "456 Avenue des Champs, 75008 Paris, France",
-        // Professional Information
-        company: "OHSE CAPITAL",
-        hireDate: "2022-03-10",
-        profession: "HR Manager",
-        phoneNumber: "+33 1 98 76 54 32",
-        department: "HR",
-        dossierNumber: "OHSE-2022001",
-        matriculeNumber: "MAT-1234567891" // Optional, will be auto-generated if not provided
-      },
-      {
-        username: "mohammed.alami",
-        email: "mohammed.alami@company.com",
-        firstName: "Mohammed",
-        lastName: "Alami",
-        password: "SecurePassword123!", // Initial password for the user
-        roles: ["INFIRMIER_ST"],
-        // Personal Information
-        gender: "MALE",
-        birthDate: "1988-12-03",
-        address: "789 Boulevard Mohammed V, Casablanca, Maroc",
-        // Professional Information
-        company: "OHSE CAPITAL",
-        hireDate: "2023-06-20",
-        profession: "Infirmier",
-        phoneNumber: "+212 5 22 34 56 78",
-        department: "Santé",
-        dossierNumber: "OHSE-2023002",
-        matriculeNumber: "MAT-1234567892" // Optional, will be auto-generated if not provided
+  const downloadTemplate = async () => {
+    try {
+      const XLSX = await import('xlsx-js-style')
+      
+      // Sample data for the template
+      const sampleData = [
+        {
+          'Prénom': 'Jean',
+          'Nom': 'Dupont',
+          'Email': 'jean.dupont@entreprise.com',
+          'Téléphone': '+33 1 23 45 67 89',
+          'Département': 'IT',
+          'Poste': 'Ingénieur Logiciel',
+          'Date d\'embauche': '2024-01-15',
+          'Genre': 'Homme',
+          'Date de naissance': '1990-05-20',
+          'Adresse': '123 Rue de la Paix, Paris',
+          'Entreprise': 'Ma Société',
+          'Numéro matricule': 'EMP001'
+        }
+      ]
+      
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(sampleData)
+      
+      // Style the header row
+      const headerStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "4472C4" } },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" }
+        }
       }
-    ]
+      
+      // Apply styles to header row
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+        if (!ws[cellAddress]) {
+          ws[cellAddress] = { v: '', t: 's' }
+        }
+        ws[cellAddress].s = headerStyle
+      }
+      
+      // Set column widths
+      ws['!cols'] = [
+        { width: 15 }, // Prénom
+        { width: 15 }, // Nom
+        { width: 25 }, // Email
+        { width: 18 }, // Téléphone
+        { width: 15 }, // Département
+        { width: 20 }, // Poste
+        { width: 15 }, // Date d'embauche
+        { width: 10 }, // Genre
+        { width: 15 }, // Date de naissance
+        { width: 30 }, // Adresse
+        { width: 20 }, // Entreprise
+        { width: 18 }  // Numéro matricule
+      ]
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Employés')
+      
+      // Save the file
+      XLSX.writeFile(wb, 'modele_import_employes.xlsx')
+      toast.success(t.templateDownloaded)
+    } catch (error) {
+      console.error('Error downloading template:', error)
+      toast.error('Erreur lors du téléchargement du modèle')
+    }
+  }
 
-    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'users_template_complete.json'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    toast.success(t.templateDownloaded)
+  const handleExcelFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const XLSX = await import('xlsx-js-style')
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const workbook = XLSX.read(data, { type: 'array' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet)
+          
+          // Map French column headers to English field names
+          const mappedData = jsonData.map((row: any) => ({
+            firstName: row['Prénom'] || '',
+            lastName: row['Nom'] || '',
+            email: row['Email'] || '',
+            phoneNumber: row['Téléphone'] || '',
+            department: row['Département'] || '',
+            position: row['Poste'] || '',
+            hireDate: row['Date d\'embauche'] || '',
+            gender: row['Genre'] || '',
+            birthDate: row['Date de naissance'] || '',
+            address: row['Adresse'] || '',
+            company: row['Entreprise'] || '',
+            matriculeNumber: row['Numéro matricule'] || ''
+          }))
+          
+          setExcelEmployees(mappedData)
+          setExcelFileName(file.name)
+          toast.success(`Fichier ${file.name} chargé avec succès`)
+        } catch (error) {
+          console.error('Error parsing Excel file:', error)
+          toast.error('Erreur lors de la lecture du fichier Excel')
+        }
+      }
+      
+      reader.readAsArrayBuffer(file)
+    } catch (error) {
+      console.error('Error loading Excel library:', error)
+      toast.error('Erreur lors du chargement de la bibliothèque Excel')
+    }
   }
 
   const handleBulkImport = async () => {
-    if (!bulkImportData.trim()) {
-      toast.error("Please enter JSON data")
-      return
-    }
+    if (!excelEmployees.length) {
+      toast.error("Please upload an Excel file")
+        return
+      }
 
     try {
       setIsImporting(true)
-      const usersData = JSON.parse(bulkImportData)
-      
-      if (!Array.isArray(usersData)) {
-        toast.error("JSON data must be an array of users")
-        return
-      }
 
-      // Validate matricule numbers in the import data
-      const invalidMatriculeUsers = usersData.filter((user: any) => {
-        if (user.matriculeNumber && !validateMatriculeNumber(user.matriculeNumber)) {
-          return true
-        }
-        return false
-      })
-
-      if (invalidMatriculeUsers.length > 0) {
-        toast.error(`Invalid matricule number format found in ${invalidMatriculeUsers.length} user(s). Format should be MAT-XXXXXXXXX`)
-        setIsImporting(false)
-        return
-      }
-
-
-
-      const response = await fetch('/api/v1/admin/users/bulk-import', {
+      // Use the RH endpoint for Excel import
+      const response = await fetch('/api/v1/rh/employees/bulk-import', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(usersData)
+        body: JSON.stringify(excelEmployees)
       })
 
-      if (response.status === 401) {
-        router.push("/login")
-        return
-      }
-
+      if (response.ok) {
       const result = await response.json()
+        console.log('Import result:', result)
 
       if (result.success) {
-        setImportResults(result.results)
-        toast.success(`${result.successCount} users imported successfully, ${result.errorCount} failed`)
-        fetchUsers() // Refresh the user list
+          toast.success(`Import terminé avec succès! ${result.successCount} employés importés, ${result.errorCount} erreurs`)
+          setImportResults(result.results || [])
+          
+          // Refresh the user list to show new employees
+          fetchUsers()
       } else {
-        toast.error(result.message || t.importError)
+          toast.error(`Erreur lors de l'import: ${result.message || 'Erreur inconnue'}`)
+          setImportResults(result.results || [])
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(`Erreur lors de l'import: ${errorData.message || `HTTP ${response.status}`}`)
       }
     } catch (error) {
       console.error("Error during bulk import:", error)
-      toast.error("Invalid JSON format or import failed")
+      toast.error("Erreur lors de l'import")
     } finally {
       setIsImporting(false)
     }
@@ -1786,6 +1896,16 @@ export default function AdminUsersPage() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             {t.refresh}
+          </Button>
+          
+          <Button 
+            onClick={syncData} 
+            variant="outline" 
+            className="bg-white/90 dark:bg-slate-800/90 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Synchroniser
           </Button>
           
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -2170,7 +2290,7 @@ export default function AdminUsersPage() {
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">{t.bulkImportTitle}</DialogTitle>
               <DialogDescription className="text-slate-600 dark:text-slate-400">
-                {t.bulkImportDescription}
+                Importez plusieurs employés depuis un fichier Excel
               </DialogDescription>
             </DialogHeader>
             
@@ -2179,8 +2299,8 @@ export default function AdminUsersPage() {
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Download Template</h3>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">Get a sample JSON template to understand the required format</p>
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Télécharger le modèle</h3>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Téléchargez un modèle Excel avec les colonnes requises</p>
                   </div>
                   <Button
                     onClick={downloadTemplate}
@@ -2193,33 +2313,79 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* JSON Input Section */}
+              {/* Excel File Upload Section */}
               <div className="space-y-3">
-                <Label htmlFor="bulk-import-data" className="text-slate-700 dark:text-slate-300 font-medium">
-                  {t.importFromJSON}
+                <Label htmlFor="excel-file" className="text-slate-700 dark:text-slate-300 font-medium">
+                  Importer depuis un fichier Excel
                 </Label>
-                <textarea
-                  id="bulk-import-data"
-                  value={bulkImportData}
-                  onChange={(e) => setBulkImportData(e.target.value)}
-                  placeholder={`[
-  {
-    "username": "john.doe",
-    "email": "john.doe@company.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "password": "SecurePassword123!", // Initial password for the user
-    "roles": ["EMPLOYEE"],
-    "phoneNumber": "+33 1 23 45 67 89",
-    "department": "IT",
-    "position": "Software Engineer"
-  }
-]`}
-                  className="w-full h-64 p-4 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 shadow-sm hover:shadow-md placeholder:text-slate-500 dark:placeholder:text-slate-400 text-slate-900 dark:text-slate-100 font-mono text-sm resize-none"
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t.supportedFormats}
-                </p>
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-slate-400 dark:hover:border-slate-500 transition-colors">
+                  <input
+                    type="file"
+                    id="excel-file"
+                    accept=".xlsx,.xls"
+                    onChange={handleExcelFileChange}
+                    className="hidden"
+                  />
+                  <label htmlFor="excel-file" className="cursor-pointer">
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-slate-400" />
+                    <p className="text-slate-600 dark:text-slate-400">
+                      {excelFileName ? `Fichier sélectionné: ${excelFileName}` : "Cliquez pour sélectionner un fichier Excel"}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Formats supportés: .xlsx, .xls
+                    </p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preview Section */}
+              {excelEmployees.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-slate-700 dark:text-slate-300 font-medium">
+                    Aperçu des employés à importer ({excelEmployees.length} employés)
+                  </Label>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {excelEmployees.slice(0, 5).map((employee, index) => (
+                      <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {employee.firstName} {employee.lastName}
+                          </span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400">
+                            Ligne {index + 1}
+                          </span>
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          {employee.email} • {employee.department} • {employee.position}
+                        </div>
+                      </div>
+                    ))}
+                    {excelEmployees.length > 5 && (
+                      <div className="text-center text-sm text-slate-500 dark:text-slate-400">
+                        ... et {excelEmployees.length - 5} autres employés
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Column Information */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">Colonnes requises dans le fichier Excel:</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm text-green-700 dark:text-green-300">
+                  <div>• Prénom</div>
+                  <div>• Nom</div>
+                  <div>• Email</div>
+                  <div>• Téléphone</div>
+                  <div>• Département</div>
+                  <div>• Poste</div>
+                  <div>• Date d'embauche</div>
+                  <div>• Genre</div>
+                  <div>• Date de naissance</div>
+                  <div>• Adresse</div>
+                  <div>• Entreprise</div>
+                  <div>• Numéro matricule</div>
+                </div>
               </div>
 
               {/* Import Results */}
@@ -2262,7 +2428,8 @@ export default function AdminUsersPage() {
                 variant="outline" 
                 onClick={() => {
                   setShowBulkImportDialog(false)
-                  setBulkImportData("")
+                  setExcelEmployees([])
+                  setExcelFileName("")
                   setImportResults([])
                 }} 
                 className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-lg"
@@ -2271,7 +2438,7 @@ export default function AdminUsersPage() {
               </Button>
               <Button 
                 onClick={handleBulkImport}
-                disabled={isImporting || !bulkImportData.trim()}
+                disabled={isImporting || !excelEmployees.length}
                 style={{
                   background: `linear-gradient(135deg, ${themeColors.colors.primary[600]}, ${themeColors.colors.primary[700]})`
                 }}

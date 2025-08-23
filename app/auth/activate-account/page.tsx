@@ -22,7 +22,8 @@ export default function ActivateAccountPage() {
     }
     const verify = async () => {
       try {
-        const res = await fetch("http://localhost:8081/account/verify-activation-code", {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+        const res = await fetch(`${API_URL}/api/v1/account/verify-activation-code`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, code })
@@ -51,7 +52,7 @@ export default function ActivateAccountPage() {
             <div className="h-10 w-10 ohse-gradient-burgundy rounded-xl shadow-lg flex items-center justify-center">
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold ohse-text-burgundy">OHSE CAPITAL</span>
+            <span className="text-xl font-bold ohse-text-burgundy">OSHapp</span>
           </Link>
         </div>
         <Card className="ohse-card shadow-xl">

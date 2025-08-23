@@ -97,7 +97,7 @@ export function AdminNavigation({ language, setLanguage }: AdminNavigationProps)
                   ></div>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">OHSE CAPITAL</span>
+                  <span className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">OSHapp</span>
                   <span className="text-sm text-slate-600 dark:text-slate-400 font-medium flex items-center gap-2">
                     <div className="h-6 w-6 bg-gradient-to-br from-red-600 to-red-700 rounded-lg flex items-center justify-center shadow-md">
                       <Crown className="h-3 w-3 text-white" />

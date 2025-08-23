@@ -148,7 +148,7 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                 birthDate: profileData.birthDate,
                 address: profileData.address,
                 hireDate: profileData.hireDate || employeeDataWithManagers.hireDate,
-                position: profileData.profession || employeeDataWithManagers.position,
+                position: employeeDataWithManagers.position || profileData.profession,
                 phoneNumber: profileData.phoneNumber || employeeDataWithManagers.phoneNumber,
                 department: profileData.department || employeeDataWithManagers.department
               }
@@ -451,7 +451,7 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                       <User className="h-3 w-3 text-white" />
                     </div>
                     <div>
-                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">Profession</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">Poste</span>
                       <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.position || '-'}</div>
                     </div>
                   </div>
@@ -493,6 +493,16 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                     <div>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">Numéro de matricule</span>
                       <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.matriculeNumber || '-'}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 rounded-lg">
+                    <div className="h-6 w-6 rounded-md flex items-center justify-center" 
+                         style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[500]})`}}>
+                      <IdCard className="h-3 w-3 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">CIN</span>
+                      <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.cin || '-'}</div>
                     </div>
                   </div>
                   

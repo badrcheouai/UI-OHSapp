@@ -69,6 +69,7 @@ interface Employee {
   firstName: string
   lastName: string
   email: string
+  cin?: string
   phoneNumber?: string
   department?: string
   position?: string
@@ -104,6 +105,7 @@ export default function RHEmployeesPage() {
     firstName: "",
     lastName: "",
     email: "",
+    cin: "",
     phoneNumber: "",
     department: "",
     position: "",
@@ -117,9 +119,10 @@ export default function RHEmployeesPage() {
 
 
   
-  // Bulk import state
+  // Bulk import state (Excel)
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false)
-  const [bulkImportData, setBulkImportData] = useState("")
+  const [excelEmployees, setExcelEmployees] = useState<any[]>([])
+  const [excelFileName, setExcelFileName] = useState<string>("")
   const [importResults, setImportResults] = useState<any[]>([])
   const [isImporting, setIsImporting] = useState(false)
 
@@ -208,7 +211,7 @@ export default function RHEmployeesPage() {
         toast.success("Employé créé avec succès")
         setShowCreateDialog(false)
         setNewEmployee({
-          firstName: "", lastName: "", email: "", phoneNumber: "",
+          firstName: "", lastName: "", email: "", cin: "", phoneNumber: "",
           department: "", position: "", hireDate: "", matriculeNumber: "",
           gender: "", birthDate: "", address: "", company: ""
         })
@@ -300,32 +303,47 @@ export default function RHEmployeesPage() {
 
 
 
-  // Bulk import
+  // Bulk import (from Excel parsed data)
   const handleBulkImport = async () => {
-    if (!bulkImportData.trim()) {
-      toast.error("Veuillez entrer des données JSON")
+    if (!excelEmployees.length) {
+      toast.error("Veuillez sélectionner un fichier Excel valide")
       return
     }
 
     try {
       setIsImporting(true)
-      const employeesData = JSON.parse(bulkImportData)
-      
-      if (!Array.isArray(employeesData)) {
-        toast.error("Les données JSON doivent être un tableau d'employés")
-        return
+      // Normalize rows and map French values
+      const toApiEmployee = (emp: any) => {
+        const rawGender = String(emp.gender || emp.Genre || '').trim().toUpperCase()
+        const gender = rawGender === 'HOMME' ? 'MALE' : rawGender === 'FEMME' ? 'FEMALE' : rawGender
+        const cleaned = {
+          firstName: (emp.firstName ?? '').toString().trim(),
+          lastName: (emp.lastName ?? '').toString().trim(),
+          email: (emp.email ?? '').toString().trim(),
+          cin: (emp.cin ?? emp.CIN ?? '').toString().trim() || undefined,
+          phoneNumber: (emp.phoneNumber ?? '').toString().trim() || undefined,
+          department: (emp.department ?? '').toString().trim() || undefined,
+          position: (emp.position ?? '').toString().trim() || undefined,
+          hireDate: (emp.hireDate ?? '').toString().trim() || undefined,
+          gender: gender || undefined,
+          birthDate: (emp.birthDate ?? '').toString().trim() || undefined,
+          address: (emp.address ?? '').toString().trim() || undefined,
+          company: (emp.company ?? '').toString().trim() || undefined,
+          matriculeNumber: (emp.matriculeNumber ?? '').toString().trim() || undefined,
+          roles: ['SALARIE'],
+        }
+        return cleaned
       }
+      const payload = excelEmployees.map(toApiEmployee)
 
-      const response = await fetch('/api/v1/rh/employees/bulk-import', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+      const response = await fetch(`${apiUrl}/api/v1/rh/employees/bulk-import`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(employeesData.map((emp: any) => ({
-          ...emp,
-          roles: ['SALARIE']
-        })))
+        body: JSON.stringify(payload)
       })
 
       if (response.ok) {
@@ -334,45 +352,114 @@ export default function RHEmployeesPage() {
         toast.success(`${result.successCount || 0} employés importés avec succès`)
         fetchEmployees()
       } else {
-        throw new Error('Import failed')
+        const errorText = await response.text()
+        console.error('Import failed:', errorText)
+        toast.error("Échec de l'import: " + (errorText || 'Erreur inconnue'))
       }
     } catch (error) {
       console.error("Error during bulk import:", error)
-      toast.error("Format JSON invalide ou échec de l'import")
+      toast.error("Échec de l'import Excel")
     } finally {
       setIsImporting(false)
     }
   }
 
-  // Download template
-  const downloadTemplate = () => {
-    const template = [
-      {
-        firstName: "Jean",
-        lastName: "Dupont",
-        email: "jean.dupont@company.com",
-        phoneNumber: "+33 1 23 45 67 89",
-        department: "IT",
-        position: "Développeur",
-        hireDate: "2023-01-15",
-        gender: "MALE",
-        birthDate: "1990-05-15",
-        address: "123 Rue de la Paix, Paris",
-        company: "OHSE CAPITAL"
-      }
-    ]
+  // Download Excel template
+  const downloadTemplate = async () => {
+    try {
+      const XLSX: any = await import('xlsx-js-style')
+      const headers = [
+        'Prénom', 'Nom', 'Email', 'CIN', 'Téléphone', 'Département', 'Poste',
+        'Date d\'embauche', 'Genre', 'Date de naissance', 'Adresse', 'Entreprise', 'Numéro matricule'
+      ]
+      const sample = [{
+        'Prénom': 'Jean',
+        'Nom': 'Dupont',
+        'Email': 'jean.dupont@company.com',
+        'CIN': 'AB123456',
+        'Téléphone': '+33 1 23 45 67 89',
+        'Département': 'IT',
+        'Poste': 'Développeur',
+        'Date d\'embauche': '2023-01-15',
+        'Genre': 'MALE',
+        'Date de naissance': '1990-05-15',
+        'Adresse': '123 Rue de la Paix, Paris',
+        'Entreprise': 'OHSE CAPITAL',
+        'Numéro matricule': 'MAT-1234567890'
+      }]
+      const worksheet = XLSX.utils.json_to_sheet(sample, { header: headers })
+      // Style header row with colors
+      headers.forEach((_, index) => {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: index })
+        if (!worksheet[cellAddress]) return
+        worksheet[cellAddress].s = {
+          fill: { fgColor: { rgb: 'E2E8F0' } },
+          font: { bold: true, color: { rgb: '0F172A' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: {
+            top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            right: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          },
+        }
+      })
+      // Set column widths
+      worksheet['!cols'] = headers.map(() => ({ wch: 22 }))
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees')
+      XLSX.writeFile(workbook, 'employees_template.xlsx')
+      toast.success('Modèle Excel téléchargé avec succès')
+    } catch (e) {
+      console.error(e)
+      toast.error("Erreur lors de la génération du modèle Excel")
+    }
+  }
 
-    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'employees_template.json'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    toast.success("Modèle téléchargé avec succès")
+  // Handle Excel file selection and parse
+  const handleExcelFileChange = async (file: File | null) => {
+    if (!file) return
+    try {
+      setExcelFileName(file.name)
+      const XLSX: any = await import('xlsx-js-style')
+      const arrayBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const sheet = workbook.Sheets[firstSheetName]
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const normalized = rows.map((row) => {
+        const obj: any = {}
+        Object.keys(row).forEach((key) => {
+          const k = String(key).trim()
+          // Map French column headers to English field names
+          const map: Record<string, string> = {
+            'Prénom': 'firstName',
+            'Nom': 'lastName',
+            'Email': 'email',
+            'CIN': 'cin',
+            'Téléphone': 'phoneNumber',
+            'Département': 'department',
+            'Poste': 'position',
+            'Date d\'embauche': 'hireDate',
+            'Genre': 'gender',
+            'Date de naissance': 'birthDate',
+            'Adresse': 'address',
+            'Entreprise': 'company',
+            'Numéro matricule': 'matriculeNumber',
+          }
+          const matched = map[k]
+          if (matched) obj[matched] = (row as any)[key]
+        })
+        return obj
+      })
+      setExcelEmployees(normalized)
+      toast.success(`${normalized.length} lignes chargées depuis Excel`)
+    } catch (e) {
+      console.error(e)
+      toast.error("Impossible de lire le fichier Excel")
+      setExcelEmployees([])
+      setExcelFileName("")
+    }
   }
 
   // Filtered employees
@@ -541,17 +628,18 @@ export default function RHEmployeesPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-                                                  <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Nom</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Email</TableHead>
-                                                  <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
-                                                    <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Nom</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Email</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">CIN</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
                           <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4 text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredEmployees.map((employee, index) => (
                           <TableRow 
-                        key={employee.id}
+                            key={employee.id}
                             className={`border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200 ${
                               index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50/50 dark:bg-slate-800/30'
                             }`}
@@ -561,20 +649,23 @@ export default function RHEmployeesPage() {
                                 <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold text-white" 
                                      style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[600]})`}}>
                                   {employee.firstName.charAt(0)}{employee.lastName.charAt(0)}
-                          </div>
+                                </div>
                                 <span className="font-semibold text-slate-900 dark:text-white">
-                              {employee.firstName} {employee.lastName}
+                                  {employee.firstName} {employee.lastName}
                                 </span>
-                            </div>
+                              </div>
                             </TableCell>
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-6 w-6 rounded-lg flex items-center justify-center" 
                                      style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[500]})`}}>
                                   <Mail className="h-3 w-3 text-white" />
-                          </div>
+                                </div>
                                 <span className="text-slate-700 dark:text-slate-300 font-medium">{employee.email}</span>
-                        </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="text-slate-700 dark:text-slate-300 font-medium">{employee.cin || '-'}</span>
                             </TableCell>
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
@@ -622,7 +713,7 @@ export default function RHEmployeesPage() {
                               </div>
                             </TableCell>
                           </TableRow>
-                    ))}
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -650,68 +741,82 @@ export default function RHEmployeesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="firstName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Prénom *</Label>
-          <Input
-            id="firstName"
+                  <Input
+                    id="firstName"
                     value={newEmployee.firstName}
                     onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Prénom de l'employé"
-          />
-        </div>
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label htmlFor="lastName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Nom *</Label>
-          <Input
-            id="lastName"
+                  <Input
+                    id="lastName"
                     value={newEmployee.lastName}
                     onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Nom de l'employé"
-          />
-        </div>
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label htmlFor="cin" className="text-slate-700 dark:text-slate-300 font-medium text-sm">CIN</Label>
+                  <Input
+                    id="cin"
+                    value={newEmployee.cin}
+                    onChange={(e) => setNewEmployee({...newEmployee, cin: e.target.value})}
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    placeholder="Ex: AB123456"
+                  />
+                </div>
+                <div className="space-y-3">
+                </div>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Email *</Label>
-          <Input
-            id="email"
-            type="email"
+                <Input
+                  id="email"
+                  type="email"
                   value={newEmployee.email}
                   onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="email@exemple.com"
-          />
-        </div>
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="phoneNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Téléphone</Label>
-          <Input
-            id="phoneNumber"
+                  <Input
+                    id="phoneNumber"
                     value={newEmployee.phoneNumber}
                     onChange={(e) => setNewEmployee({...newEmployee, phoneNumber: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="+212 6 12 34 56 78"
-          />
-        </div>
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label htmlFor="department" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Département</Label>
-          <Input
-            id="department"
+                  <Input
+                    id="department"
                     value={newEmployee.department}
                     onChange={(e) => setNewEmployee({...newEmployee, department: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: RH, IT, Marketing"
-          />
-        </div>
+                  />
+                </div>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="position" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Poste</Label>
-          <Input
-            id="position"
+                <Input
+                  id="position"
                   value={newEmployee.position}
                   onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: Développeur, Manager, Analyste"
-          />
-        </div>
+                />
+              </div>
               
               {/* Additional Personal Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -729,31 +834,31 @@ export default function RHEmployeesPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="birthDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date de naissance *</Label>
-          <Input
+                  <Input
                     id="birthDate"
-            type="date"
+                    type="date"
                     value={newEmployee.birthDate}
                     onChange={(e) => setNewEmployee({...newEmployee, birthDate: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-          />
-        </div>
+                  />
+                </div>
               </div>
               
               <div className="space-y-3">
                 <Label htmlFor="address" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Adresse *</Label>
-          <Input
+                <Input
                   id="address"
                   value={newEmployee.address}
                   onChange={(e) => setNewEmployee({...newEmployee, address: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: 123 Rue de la Paix, Paris"
-          />
-        </div>
+                />
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="company" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Entreprise *</Label>
-          <Input
+                  <Input
                     id="company"
                     value={newEmployee.company}
                     onChange={(e) => setNewEmployee({...newEmployee, company: e.target.value})}
@@ -765,24 +870,24 @@ export default function RHEmployeesPage() {
                   <Label htmlFor="hireDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date d'embauche *</Label>
                   <Input
                     id="hireDate"
-            type="date"
+                    type="date"
                     value={newEmployee.hireDate}
                     onChange={(e) => setNewEmployee({...newEmployee, hireDate: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-          />
-        </div>
+                  />
+                </div>
               </div>
               
               <div className="space-y-3">
                 <Label htmlFor="matriculeNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Numéro matricule</Label>
-          <Input
+                <Input
                   id="matriculeNumber"
                   value={newEmployee.matriculeNumber}
                   onChange={(e) => setNewEmployee({...newEmployee, matriculeNumber: e.target.value})}
-                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: MAT-1234567890"
-          />
-        </div>
+                />
+              </div>
             </div>
             <DialogFooter className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/60 dark:border-slate-700/60 pt-6">
               <Button 
@@ -818,16 +923,16 @@ export default function RHEmployeesPage() {
                 Import en masse
               </DialogTitle>
               <DialogDescription className="text-slate-600 dark:text-slate-400">
-                Importez plusieurs employés depuis un fichier JSON
+                Importez plusieurs employés depuis un fichier Excel
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-6">
               {/* Template Download */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800 shadow-lg">
                 <div className="flex items-center justify-between">
-        <div>
+                  <div>
                     <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-lg">Télécharger le modèle</h3>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">Obtenez un modèle JSON pour comprendre le format requis</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Obtenez un modèle Excel avec les colonnes requises</p>
                   </div>
                   <Button
                     onClick={downloadTemplate}
@@ -840,30 +945,55 @@ export default function RHEmployeesPage() {
                 </div>
               </div>
 
-              {/* JSON Input */}
+              {/* Excel Input */}
               <div className="space-y-3">
-                <Label className="text-slate-700 dark:text-slate-300 font-medium text-sm">Données JSON</Label>
-                <textarea
-                  value={bulkImportData}
-                  onChange={(e) => setBulkImportData(e.target.value)}
-                  placeholder={`[
-  {
-    "firstName": "Jean",
-    "lastName": "Dupont",
-    "email": "jean.dupont@company.com",
-    "phoneNumber": "+33 1 23 45 67 89",
-    "department": "IT",
-    "position": "Développeur",
-    "hireDate": "2023-01-15",
-    "gender": "MALE",
-    "birthDate": "1990-05-15",
-    "address": "123 Rue de la Paix, Paris",
-    "company": "OHSE CAPITAL"
-  }
-]`}
-                  className="w-full h-64 p-4 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-slate-900 dark:text-slate-100 font-mono text-sm resize-none shadow-sm hover:shadow-md"
+                <Label className="text-slate-700 dark:text-slate-300 font-medium text-sm">Fichier Excel</Label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => handleExcelFileChange(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
                 />
+                <p className="text-xs text-slate-500 dark:text-slate-400">Colonnes: Prénom, Nom, Email, CIN, Téléphone, Département, Poste, Date d'embauche, Genre, Date de naissance, Adresse, Entreprise, Numéro matricule</p>
+                {excelFileName && (
+                  <p className="text-xs text-slate-600 dark:text-slate-300">Fichier sélectionné: {excelFileName} • {excelEmployees.length} lignes détectées</p>
+                )}
               </div>
+
+              {/* Preview of employees to be imported */}
+              {excelEmployees.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-slate-700 dark:text-slate-300 font-medium text-sm">Aperçu des employés à importer</Label>
+                  <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-600 rounded-lg p-3 bg-slate-50 dark:bg-slate-800/30">
+                    {excelEmployees.map((emp, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-white dark:bg-slate-700 rounded border border-slate-200 dark:border-slate-600"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold text-white bg-slate-500">
+                            {emp.firstName?.charAt(0) || '?'}{emp.lastName?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-slate-100">
+                              {emp.firstName || 'N/A'} {emp.lastName || 'N/A'}
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              {emp.email || 'Email manquant'} • {emp.cin || 'CIN manquant'}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Ligne {index + 1}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {excelEmployees.length} employé(s) prêt(s) à être importé(s)
+                  </p>
+                </div>
+              )}
 
               {/* Import Results */}
               {importResults.length > 0 && (
@@ -909,7 +1039,7 @@ export default function RHEmployeesPage() {
               </Button>
               <Button 
                 onClick={handleBulkImport}
-                disabled={isImporting || !bulkImportData.trim()}
+                disabled={isImporting || excelEmployees.length === 0}
                 style={{
                   background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[600]})`
                 }}
@@ -923,7 +1053,7 @@ export default function RHEmployeesPage() {
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Importer
+                    Importer depuis Excel
                   </>
                 )}
               </Button>
@@ -951,47 +1081,47 @@ export default function RHEmployeesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="editFirstName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Prénom *</Label>
-          <Input
+                    <Input
                       id="editFirstName"
                       value={selectedEmployee.firstName}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, firstName: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="Prénom de l'employé"
-          />
-        </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="editLastName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Nom *</Label>
-          <Input
+                    <Input
                       id="editLastName"
                       value={selectedEmployee.lastName}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, lastName: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="Nom de l'employé"
-          />
-        </div>
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="editEmail" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Email *</Label>
-          <Input
+                  <Input
                     id="editEmail"
                     type="email"
                     value={selectedEmployee.email}
                     onChange={(e) => setSelectedEmployee({...selectedEmployee, email: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="email@exemple.com"
-          />
-        </div>
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="editPhoneNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Téléphone</Label>
-          <Input
+                    <Input
                       id="editPhoneNumber"
                       value={selectedEmployee.phoneNumber}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, phoneNumber: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="+212 6 12 34 56 78"
-          />
-        </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="editDepartment" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Département</Label>
                     <Input
@@ -1004,6 +1134,16 @@ export default function RHEmployeesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="editCin" className="text-slate-700 dark:text-slate-300 font-medium text-sm">CIN</Label>
+                  <Input
+                    id="editCin"
+                    value={selectedEmployee.cin || ''}
+                    onChange={(e) => setSelectedEmployee({...selectedEmployee, cin: e.target.value})}
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    placeholder="Ex: AB123456"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="editPosition" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Poste</Label>
                   <Input
                     id="editPosition"
@@ -1012,7 +1152,7 @@ export default function RHEmployeesPage() {
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: Développeur, Manager, Analyste"
                   />
-      </div>
+                </div>
 
                 {/* Additional Personal Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1080,7 +1220,7 @@ export default function RHEmployeesPage() {
                     id="editMatriculeNumber"
                     value={selectedEmployee.matriculeNumber}
                     onChange={(e) => setSelectedEmployee({...selectedEmployee, matriculeNumber: e.target.value})}
-                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: MAT-1234567890"
                   />
                 </div>
@@ -1132,8 +1272,8 @@ export default function RHEmployeesPage() {
                 onClick={() => setShowEditDialog(false)}
                 className="border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-300"
               >
-          Annuler
-        </Button>
+                Annuler
+              </Button>
               <Button 
                 onClick={updateEmployee}
                 style={{
@@ -1143,7 +1283,7 @@ export default function RHEmployeesPage() {
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Mettre à jour
-        </Button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

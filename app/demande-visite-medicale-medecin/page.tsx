@@ -36,7 +36,8 @@ import {
   MessageSquare,
   Filter,
   Search,
-  RefreshCw
+  RefreshCw,
+  XCircle
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr, enUS } from "date-fns/locale"
@@ -60,6 +61,7 @@ export default function DemandeVisiteMedicaleMedecin() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<MedicalVisitRequest | null>(null)
+  const [isRejectedRequest, setIsRejectedRequest] = useState(false)
   const [proposeDate, setProposeDate] = useState<Date | null>(null)
   const [proposeTime, setProposeTime] = useState("")
   const [proposeReason, setProposeReason] = useState("")
@@ -213,17 +215,17 @@ export default function DemandeVisiteMedicaleMedecin() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
-        return <Badge variant="secondary" className="bg-slate-100 text-slate-800">En attente</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">En attente</Badge>
       case "PROPOSED":
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Proposé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30">Proposé</Badge>
       case "CONFIRMED":
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Confirmé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">Confirmé</Badge>
       case "CANCELLED":
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">Annulé</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Annulé</Badge>
       case "REJECTED":
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">Rejeté</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Rejeté</Badge>
       default:
-        return <Badge variant="secondary">Inconnu</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">Inconnu</Badge>
     }
   }
 
@@ -266,7 +268,7 @@ export default function DemandeVisiteMedicaleMedecin() {
     }
   }
 
-  const handlePropose = async (requestId: number, newDate: Date, newTime: string, reason?: string, modality?: 'PRESENTIEL'|'DISTANCE') => {
+  const handlePropose = async (requestId: number, newDate: Date, newTime: string, reason?: string, modality?: 'PRESENTIEL'|'DISTANCE', isRejectedRequest: boolean = false) => {
     setIsProcessing(true)
     try {
       if (!user) {
@@ -278,23 +280,45 @@ export default function DemandeVisiteMedicaleMedecin() {
         return;
       }
       
-      await medicalVisitAPI.proposeSlot(requestId, {
-        proposedDate: newDate.toISOString().split('T')[0],
-        proposedTime: newTime,
-        reason: reason || "Nouveau créneau proposé",
-        proposedBy: user?.username || "Médecin",
-        modality
-      });
-      
-      // Reload requests to get updated data
-      await loadRequests();
-      await loadRequestCounts();
-      
-      toast({
-        title: "Créneau proposé",
-        description: "Un nouveau créneau a été proposé avec succès.",
-        variant: "default",
-      });
+      if (isRejectedRequest) {
+        // Use the auto-confirm endpoint for rejected requests
+        await medicalVisitAPI.proposeSlotAfterRejection(requestId, {
+          proposedDate: format(newDate, 'yyyy-MM-dd'),
+          proposedTime: newTime,
+          reason: reason || "Veuillez svp venir à l'heure",
+          proposedBy: user?.username || "Médecin",
+          modality
+        });
+        
+        // Reload requests to get updated data
+        await loadRequests();
+        await loadRequestCounts();
+        
+        toast({
+          title: "Nouveau créneau confirmé",
+          description: "Un nouveau créneau a été automatiquement confirmé pour l'employé.",
+          variant: "default",
+        });
+      } else {
+        // Use the regular proposal endpoint
+        await medicalVisitAPI.proposeSlot(requestId, {
+          proposedDate: format(newDate, 'yyyy-MM-dd'),
+          proposedTime: newTime,
+          reason: reason || "Veuillez svp venir à l'heure",
+          proposedBy: user?.username || "Médecin",
+          modality
+        });
+        
+        // Reload requests to get updated data
+        await loadRequests();
+        await loadRequestCounts();
+        
+        toast({
+          title: "Créneau proposé",
+          description: "Un nouveau créneau a été proposé avec succès.",
+          variant: "default",
+        });
+      }
     } catch (error) {
       console.error("Error proposing slot:", error);
       toast({
@@ -440,7 +464,7 @@ export default function DemandeVisiteMedicaleMedecin() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
-                        <EnhancedCalendar selectedDate={planDueDate ? new Date(planDueDate) : null} onDateSelect={(d)=>setPlanDueDate(d?.toISOString().split('T')[0] || '')} minDate={new Date()} />
+                        <EnhancedCalendar selectedDate={planDueDate ? new Date(planDueDate) : null} onDateSelect={(d)=>setPlanDueDate(d ? format(d, 'yyyy-MM-dd') : '')} minDate={new Date()} />
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -719,18 +743,22 @@ export default function DemandeVisiteMedicaleMedecin() {
                     <div className="flex flex-col gap-2 min-w-[200px]">
                       {request.status === "PENDING" && (
                         <>
-                          <Button
-                            onClick={() => handleConfirm(request.id)}
-                            disabled={isProcessing}
-                            className="w-full text-white hover:shadow-lg transition-all duration-300"
-                            style={{
-                              background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
-                              boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
-                            }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Confirmer
-                          </Button>
+                          {/* Only show Confirmer button for non-EMBAUCHE and non-REPRISE visits */}
+                          {request.visitType !== 'EMBAUCHE' && request.visitType !== 'REPRISE' && (
+                            <Button
+                              onClick={() => handleConfirm(request.id)}
+                              disabled={isProcessing}
+                              className="w-full text-white hover:shadow-lg transition-all duration-300"
+                              style={{
+                                background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                                boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
+                              }}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Confirmer
+                            </Button>
+                          )}
+                          {/* Always show Proposer un créneau button for PENDING requests */}
                           <Button
                             variant="outline"
                             onClick={() => {
@@ -753,6 +781,113 @@ export default function DemandeVisiteMedicaleMedecin() {
                               ? `Proposer un ${request.previousProposals.length + 1}ème créneau`
                               : "Proposer un créneau"
                             }
+                          </Button>
+                          
+                          {/* Always show Infos salarié button */}
+                          <Button
+                            variant="outline"
+                            onClick={() => { setPlanEmployeeId(request.employeeId); setShowEmployeeInfo(true); }}
+                            className="w-full transition-all duration-300 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                            style={{
+                              borderColor: getThemeColor(300),
+                              color: getThemeColor(700),
+                              background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                              boxShadow: `0 4px 12px -4px ${getThemeColor(500)}20`
+                            }}
+                          >
+                            <User className="h-4 w-4 mr-2" />
+                            Infos salarié
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Show rejection information and action buttons for rejected proposals */}
+                      {request.status === "REJECTED" && (
+                        <>
+                          {/* Rejection Information */}
+                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                              <h4 className="text-sm font-semibold text-red-800 dark:text-red-200">
+                                Demande rejetée
+                              </h4>
+                            </div>
+                            
+                            {/* Get rejection details from the latest proposal */}
+                            {request.previousProposals && request.previousProposals.length > 0 && (
+                              (() => {
+                                const rejectedProposal = request.previousProposals
+                                  .filter(p => p.status === 'REJECTED')
+                                  .sort((a, b) => new Date(b.proposedAt || 0).getTime() - new Date(a.proposedAt || 0).getTime())[0];
+                                
+                                if (rejectedProposal) {
+                                  return (
+                                    <div className="space-y-2">
+                                      {rejectedProposal.proposedAt && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                          <Clock className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                          <span className="text-red-700 dark:text-red-300">
+                                            Rejeté le: {format(new Date(rejectedProposal.proposedAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                                          </span>
+                                        </div>
+                                      )}
+                                      
+                                      {rejectedProposal.reason && rejectedProposal.reason.trim() !== '' && (
+                                        <div className="flex items-start gap-2 text-sm">
+                                          <MessageSquare className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5" />
+                                          <span className="text-red-700 dark:text-red-300">
+                                            <strong>Raison du rejet:</strong> {rejectedProposal.reason}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()
+                            )}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setIsRejectedRequest(true);
+                              // Pre-fill with current date/time for convenience
+                              setProposeDate(new Date());
+                              setProposeTime("09:00");
+                            }}
+                            className="w-full transition-all duration-300 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                            style={{
+                              borderColor: getThemeColor(500),
+                              color: getThemeColor(700),
+                              background: `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                              boxShadow: `0 4px 12px -4px ${getThemeColor(500)}20`
+                            }}
+                          >
+                            <CalendarIcon2 className="h-4 w-4 mr-2" />
+                            Choisir une autre date (auto-confirmé)
+                          </Button>
+                          
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              // Keep the request rejected - no action needed
+                              toast({
+                                title: "Demande maintenue rejetée",
+                                description: "La demande reste rejetée. L'employé devra contacter le service médical.",
+                              });
+                            }}
+                            className="w-full transition-all duration-300 h-11 text-sm font-bold rounded-xl border-2 hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                            style={{
+                              borderColor: '#6b7280',
+                              color: '#6b7280',
+                              background: 'linear-gradient(135deg, #f9fafb, #f3f4f6)',
+                              boxShadow: '0 4px 12px -4px #6b728020'
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Annuler (garder rejeté)
                           </Button>
                         </>
                       )}
@@ -895,10 +1030,13 @@ export default function DemandeVisiteMedicaleMedecin() {
         <DialogContent className="sm:max-w-[500px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-0 shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
-              Proposer un nouveau créneau
+              {isRejectedRequest ? "Confirmer un nouveau créneau" : "Proposer un nouveau créneau"}
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-400">
-              Proposez une nouvelle date et heure pour {selectedRequest?.employeeName}
+              {isRejectedRequest 
+                ? `Confirmez une nouvelle date et heure pour ${selectedRequest?.employeeName}. Le créneau sera automatiquement confirmé.` 
+                : `Proposez une nouvelle date et heure pour ${selectedRequest?.employeeName}`
+              }
             </DialogDescription>
           </DialogHeader>
           
@@ -988,8 +1126,9 @@ export default function DemandeVisiteMedicaleMedecin() {
             <Button 
               onClick={() => {
                 if (selectedRequest && proposeDate && proposeTime) {
-                  handlePropose(selectedRequest.id, proposeDate, proposeTime, proposeReason, proposeModality)
+                                          handlePropose(selectedRequest.id, proposeDate, proposeTime, proposeReason, proposeModality, isRejectedRequest)
                   setSelectedRequest(null)
+                  setIsRejectedRequest(false)
                   setProposeDate(null)
                   setProposeTime("")
                   setProposeReason("")
@@ -1003,7 +1142,7 @@ export default function DemandeVisiteMedicaleMedecin() {
                 boxShadow: `0 4px 6px -1px ${getThemeColor(500)}20`
               }}
             >
-              {isProcessing ? "Proposition..." : "Proposer le créneau"}
+              {isProcessing ? "Proposition..." : (isRejectedRequest ? "Confirmer le créneau" : "Proposer le créneau")}
             </Button>
           </DialogFooter>
         </DialogContent>

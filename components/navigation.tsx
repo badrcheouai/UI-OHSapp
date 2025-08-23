@@ -45,7 +45,7 @@ export function Navigation() {
                 <CompanyLogo size={24} className="text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-foreground dark:text-white">OHSE CAPITAL</h1>
+                <h1 className="text-lg font-bold text-foreground dark:text-white">OSHapp</h1>
                 <p className="text-xs text-muted-foreground dark:text-white/80">{themeColors.name}</p>
               </div>
             </div>

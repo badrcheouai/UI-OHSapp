@@ -188,32 +188,32 @@ export default function AppointmentsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "REQUESTED":
-        return <Badge variant="secondary">Demandé</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">Demandé</Badge>
       case "PROPOSED":
-        return <Badge variant="outline">Proposé</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30">Proposé</Badge>
       case "CONFIRMED":
-        return <Badge variant="default">Confirmé</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">Confirmé</Badge>
       case "COMPLETED":
-        return <Badge variant="default" className="bg-green-600">Terminé</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-green-600 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 text-green-700 dark:text-green-200 shadow-green-200/50 dark:shadow-green-800/30">Terminé</Badge>
       case "CANCELLED":
-        return <Badge variant="destructive">Annulé</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Annulé</Badge>
       default:
-        return <Badge variant="secondary">{status}</Badge>
+        return <Badge className="px-4 py-2 text-sm font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">{status}</Badge>
     }
   }
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "LOW":
-        return <Badge variant="outline">Basse</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30">Basse</Badge>
       case "MEDIUM":
-        return <Badge variant="secondary">Normale</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30">Normale</Badge>
       case "HIGH":
-        return <Badge variant="default">Élevée</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30">Élevée</Badge>
       case "URGENT":
-        return <Badge variant="destructive">Urgente</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30">Urgente</Badge>
       default:
-        return <Badge variant="outline">{priority}</Badge>
+        return <Badge className="px-3 py-1.5 text-xs font-semibold border-2 border-slate-500 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/30 dark:to-gray-900/30 text-slate-700 dark:text-slate-200 shadow-slate-200/50 dark:shadow-slate-800/30">{priority}</Badge>
     }
   }
 

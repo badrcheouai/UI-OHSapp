@@ -1,413 +1,358 @@
 "use client"
 
 import { useAuth } from "@/contexts/AuthContext"
-import { useTranslation } from "@/components/language-toggle"
 import { useTheme } from "@/contexts/ThemeContext"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import { LogOut, User, Globe, Heart, Thermometer, Shield, Activity, ChevronDown, Pill, UserCheck, Stethoscope, Clock, AlertCircle } from "lucide-react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { DashboardNavigation } from "@/components/dashboard-navigation"
-import { useState } from "react"
-import { useEffect } from "react"
-import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DashboardNavigation } from "@/components/dashboard-navigation"
+import { 
+  Stethoscope, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  AlertTriangle,
+  Users, 
+  Calendar,
+  TrendingUp,
+  FileText,
+  Activity,
+  BarChart3,
+  PieChart,
+  Download,
+  RefreshCw,
+  Eye,
+  Plus
+} from "lucide-react"
+import { medicalVisitAPI, MedicalVisitRequest } from "@/lib/api"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 
 export default function DashboardInfirmier() {
-  const { user, logout, loading } = useAuth()
-  const { t } = useTranslation()
+  const { user, loading } = useAuth()
   const { themeColors, isDark } = useTheme()
   const router = useRouter()
-  const [language, setLanguage] = useState<"en" | "fr">("fr")
   
-  // Medical visit requests state
-  const [pendingRequests, setPendingRequests] = useState<MedicalVisitRequest[]>([])
-  const [loadingRequests, setLoadingRequests] = useState(false)
-  const [requestStats, setRequestStats] = useState({
-    pending: 0,
-    proposed: 0,
-    confirmed: 0
-  })
+  const [requests, setRequests] = useState<MedicalVisitRequest[]>([])
+  const [loadingData, setLoadingData] = useState(false)
+  const [timeRange, setTimeRange] = useState<'TODAY' | 'WEEK' | 'MONTH' | 'YEAR'>('WEEK')
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'reports'>('overview')
+
+  // Helper function to get theme color
+  const getThemeColor = (shade: keyof typeof themeColors.colors.primary) => {
+    return themeColors.colors.primary[shade]
+  }
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login")
+    } else if (!loading && user && !user.roles.includes("INFIRMIER_ST") && !user.roles.includes("MEDECIN_TRAVAIL")) {
+      router.replace("/403")
+    } else if (!loading && user && (user.roles.includes("INFIRMIER_ST") || user.roles.includes("MEDECIN_TRAVAIL"))) {
+      loadDashboardData()
+    }
+  }, [user, loading, router, timeRange])
+
+  const loadDashboardData = async () => {
+    setLoadingData(true)
+    try {
+      const response = await medicalVisitAPI.getAllRequests()
+      setRequests(response.data)
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error)
+      setRequests([])
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  // Calculate statistics based on time range
+  const getFilteredRequests = () => {
+    const now = new Date()
+    const filtered = requests.filter(request => {
+      const requestDate = new Date(request.createdAt)
+      switch (timeRange) {
+        case 'TODAY':
+          return requestDate.toDateString() === now.toDateString()
+        case 'WEEK':
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          return requestDate >= weekAgo
+        case 'MONTH':
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          return requestDate >= monthAgo
+        case 'YEAR':
+          const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+          return requestDate >= yearAgo
+        default:
+          return true
+      }
+    })
+    return filtered
+  }
+
+  const filteredRequests = getFilteredRequests()
+
+  // Calculate key metrics
+  const metrics = {
+    totalRequests: filteredRequests.length,
+    pendingRequests: filteredRequests.filter(r => r.status === 'PENDING').length,
+    proposedRequests: filteredRequests.filter(r => r.status === 'PROPOSED').length,
+    confirmedRequests: filteredRequests.filter(r => r.status === 'CONFIRMED').length,
+    repriseVisits: filteredRequests.filter(r => r.visitType === 'REPRISE').length,
+    embaucheVisits: filteredRequests.filter(r => r.visitType === 'EMBAUCHE').length,
+    spontaneeVisits: filteredRequests.filter(r => r.visitType === 'SPONTANEE').length,
+    periodiqueVisits: filteredRequests.filter(r => r.visitType === 'PERIODIQUE').length
+  }
+
+  // Calculate response rate
+  const responseRate = metrics.proposedRequests > 0 
+    ? Math.round((metrics.confirmedRequests / metrics.proposedRequests) * 100)
+    : 0
+
+  // Calculate planning efficiency (first-time confirmation rate)
+  const planningEfficiency = metrics.proposedRequests > 0 
+    ? Math.round((metrics.confirmedRequests / metrics.proposedRequests) * 100)
+    : 0
+
+  // Calculate urgent visits (REPRISE and SURVEILLANCE_PARTICULIERE) for the selected time range
+  const urgentVisits = filteredRequests.filter(r => 
+    r.visitType === 'REPRISE' || r.visitType === 'SURVEILLANCE_PARTICULIERE'
+  ).length
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div 
           className="animate-spin rounded-full h-16 w-16 border-b-2 mb-4"
-          style={{ borderColor: themeColors.colors.primary[600] }}
+          style={{ borderColor: getThemeColor(500) }}
         ></div>
         <div className="text-lg">Chargement...</div>
       </div>
     )
   }
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login")
-    } else if (!loading && user && !user.roles.includes("INFIRMIER_ST")) {
-      router.replace("/403")
-    }
-  }, [user, loading, router])
-
-  // Load medical visit requests and statistics
-  useEffect(() => {
-    const loadMedicalData = async () => {
-      if (!user) return
-      
-      setLoadingRequests(true)
-      try {
-        // Load pending requests
-        const pendingResponse = await medicalVisitAPI.getPendingRequests()
-        setPendingRequests(pendingResponse.data)
-        
-        // Load statistics
-        const statsResponse = await medicalVisitAPI.getRequestCounts()
-        
-        setRequestStats({
-          pending: statsResponse.data.PENDING || 0,
-          proposed: statsResponse.data.PROPOSED || 0,
-          confirmed: statsResponse.data.CONFIRMED || 0
-        })
-      } catch (error: any) {
-        console.error("Error loading medical visit data:", error)
-        
-        // Check if it's a timeout or connection error
-        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error')) {
-          console.log("Backend not available, using demo data for infirmier dashboard")
-          
-          // Demo data for infirmier
-          const demoRequests: MedicalVisitRequest[] = [
-            {
-              id: 1,
-              employeeId: 1,
-              employeeName: "Jean Dupont",
-              employeeDepartment: "Informatique",
-              motif: "Consultation de routine",
-              dateSouhaitee: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-              heureSouhaitee: "14:30",
-              status: 'PENDING',
-              notes: "Demande de visite médicale de routine",
-              createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-              updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 2,
-              employeeId: 2,
-              employeeName: "Marie Martin",
-              employeeDepartment: "Production",
-              motif: "Douleurs dorsales",
-              dateSouhaitee: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day from now
-              heureSouhaitee: "10:00",
-              status: 'PENDING',
-              notes: "Douleurs dorsales persistantes depuis 3 jours",
-              createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 hour ago
-              updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 3,
-              employeeId: 3,
-              employeeName: "Pierre Durand",
-              employeeDepartment: "Maintenance",
-              motif: "Contrôle post-accident",
-              dateSouhaitee: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-              heureSouhaitee: "16:00",
-              status: 'PENDING',
-              notes: "Contrôle médical suite à un petit accident de travail",
-              createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
-              updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString()
-            }
-          ]
-          
-          console.log("Setting demo requests:", demoRequests)
-          setPendingRequests(demoRequests)
-          setRequestStats({
-            pending: 3,
-            proposed: 2,
-            confirmed: 5
-          })
-        }
-      } finally {
-        setLoadingRequests(false)
-      }
-    }
-
-    loadMedicalData()
-  }, [user])
-  if (loading) return null;
-  if (!user || !user.roles.includes("INFIRMIER_ST")) {
-    return null;
+  if (!user || (!user.roles.includes("INFIRMIER_ST") && !user.roles.includes("MEDECIN_TRAVAIL"))) {
+    return null
   }
 
-  const responsibilities = [
-    {
-      icon: Stethoscope,
-      text: "Demande de Visite Médicale",
-      color: `from-${themeColors.colors.primary[600]} to-${themeColors.colors.primary[800]}`,
-    },
-  ]
-
-  // Debug: Log current state
-  console.log("Current pendingRequests:", pendingRequests)
-  console.log("Current requestStats:", requestStats)
-
-
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-950">
-      {/* Navigation */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-950">
       <DashboardNavigation userRole={user.roles[0]} currentPage="dashboard" />
       
-      {/* Floating background elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute top-20 left-20 w-20 h-20 rounded-full animate-pulse"
-          style={{ backgroundColor: `${themeColors.colors.primary[200]}20` }}
-        ></div>
-        <div
-          className="absolute top-40 right-32 w-16 h-16 rounded-full animate-bounce"
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-3xl p-8 mb-8 shadow-xl">
+          <div 
+            className="absolute inset-0 opacity-90"
           style={{ 
-            backgroundColor: `${themeColors.colors.primary[300]}20`,
-            animationDelay: "1s" 
-          }}
-        ></div>
-        <div
-          className="absolute bottom-32 left-40 w-12 h-12 rounded-full animate-ping"
-          style={{ 
-            backgroundColor: `${themeColors.colors.primary[400]}20`,
-            animationDelay: "2s" 
-          }}
-        ></div>
-        <div
-          className="absolute top-1/2 right-20 w-8 h-8 rounded-full animate-pulse"
-          style={{ 
-            backgroundColor: `${themeColors.colors.primary[500]}20`,
-            animationDelay: "0.5s" 
-          }}
-        ></div>
-      </div>
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Main Content */}
-        <div className="max-w-2xl mx-auto">
-          {/* Welcome Card */}
-          <div
-            className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden animate-slide-up"
-            style={{ 
-              animationDelay: "0.2s",
-              boxShadow: `0 25px 50px -12px ${themeColors.colors.primary[500]}20, 0 10px 20px -3px ${themeColors.colors.primary[500]}10`
+              background: `linear-gradient(135deg, ${getThemeColor(50)} 0%, ${getThemeColor(100)} 50%, ${getThemeColor(200)} 100%)`
             }}
-          >
-            {/* Header */}
-            <div 
-              className="relative p-8 text-center"
+          />
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-4 mb-3">
+                <div 
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
               style={{
-                background: `linear-gradient(135deg, ${themeColors.colors.primary[600]}, ${themeColors.colors.primary[800]})`
+                    background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`
               }}
             >
-              <div className="absolute inset-0 bg-black/10"></div>
-              <div className="relative">
-                <div className="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
-                  <Heart className="h-10 w-10 text-white" />
+                  <Stethoscope className="h-7 w-7 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-white drop-shadow-lg mb-2">{t("Bienvenue sur votre espace")}</h1>
-                <div className="flex items-center justify-center gap-2">
-                  <Shield className="h-5 w-5 text-white/80" />
-                  <span className="text-lg font-semibold text-white/90">{t("Infirmier Santé Travail")}</span>
-                </div>
+                <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">
+                  Tableau de bord infirmier
+                </h1>
               </div>
+              <p className="text-slate-700 dark:text-slate-300 text-lg ml-18">
+                Vue d'ensemble des visites médicales et statistiques en temps réel
+              </p>
             </div>
-
-            {/* User Info */}
-            {user && (
-              <div className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
-                <div
-                  className="flex items-center justify-center gap-3 animate-fade-in"
-                  style={{ animationDelay: "0.3s" }}
-                >
-                  <div 
-                    className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{
-                      background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`,
-                      boxShadow: `0 10px 25px -3px ${themeColors.colors.primary[500]}40, 0 4px 6px -2px ${themeColors.colors.primary[500]}20`
-                    }}
-                  >
-                    <User className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t("Vous êtes connecté en tant que")}</p>
-                    <p className="font-bold text-slate-900 dark:text-slate-100">{user.roles[0]}</p>
+            <div className="flex items-center gap-4">
+              <Select value={timeRange} onValueChange={(value: any) => setTimeRange(value)}>
+                <SelectTrigger className="w-48 h-12 bg-white/90 backdrop-blur-sm border-0 shadow-lg rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAY">Aujourd'hui</SelectItem>
+                  <SelectItem value="WEEK">Cette semaine</SelectItem>
+                  <SelectItem value="MONTH">Ce mois</SelectItem>
+                  <SelectItem value="YEAR">Cette année</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={loadDashboardData}
+                disabled={loadingData}
+                className="h-12 px-6 bg-white/90 backdrop-blur-sm text-slate-700 border-0 shadow-lg rounded-xl hover:bg-white hover:shadow-xl transition-all duration-200"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loadingData ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* Responsibilities */}
-            <div className="p-6">
-              <div className="flex items-center justify-center gap-2 mb-6">
+        {/* Dashboard Content */}
+        <div className="space-y-6">
+                        {/* Key Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Total Requests */}
+              <Card className="relative group bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
                 <div 
-                  className="h-5 w-5 rounded-lg flex items-center justify-center"
+                  className="absolute top-0 left-0 w-full h-1 opacity-80"
                   style={{
-                    background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`
+                    background: `linear-gradient(90deg, ${getThemeColor(500)}, ${getThemeColor(600)})`
                   }}
-                >
-                  <Activity className="h-4 w-4 text-white" />
-                </div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">{t("Vos responsabilités")}</h2>
+                />
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Total demandes</p>
+                      <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{metrics.totalRequests}</p>
               </div>
-              <div className="space-y-4">
-                {responsibilities.map((item, idx) => (
-                  <Link
-                    key={idx}
-                    href="/demande-visite-medicale"
-                    className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 transition-all duration-300 hover:scale-[1.02] animate-fade-in cursor-pointer shadow-lg hover:shadow-xl"
-                    style={{ 
-                      animationDelay: `${0.4 + idx * 0.1}s`,
-                      background: isDark ? '#1e293b' : 'white',
-                      boxShadow: `0 10px 25px -3px ${themeColors.colors.primary[500]}20, 0 4px 6px -2px ${themeColors.colors.primary[500]}10`
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = isDark ? '#334155' : `${themeColors.colors.primary[50]}`
-                      e.currentTarget.style.boxShadow = `0 20px 40px -3px ${themeColors.colors.primary[500]}30, 0 8px 12px -2px ${themeColors.colors.primary[500]}20`
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = isDark ? '#1e293b' : 'white'
-                      e.currentTarget.style.boxShadow = `0 10px 25px -3px ${themeColors.colors.primary[500]}20, 0 4px 6px -2px ${themeColors.colors.primary[500]}10`
-                    }}
-                  >
-                    <div
-                      className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0"
+                    <div 
+                      className="h-14 w-14 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
                       style={{
-                        background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`,
-                        boxShadow: `0 10px 25px -3px ${themeColors.colors.primary[500]}40, 0 4px 6px -2px ${themeColors.colors.primary[500]}20`
+                        background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`
                       }}
                     >
-                      <item.icon className="h-5 w-5 text-white" />
+                      <Stethoscope className="h-7 w-7 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-slate-900 dark:text-slate-100 font-medium leading-relaxed">{item.text}</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Gérer les demandes de visites médicales</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pending Requests */}
+              <Card className="relative group bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-500 to-slate-600 opacity-80" />
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">En attente</p>
+                      <p className="text-3xl font-bold text-slate-700 dark:text-slate-300">{metrics.pendingRequests}</p>
                     </div>
-                  </Link>
-                ))}
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Clock className="h-7 w-7 text-white" />
               </div>
             </div>
-
-            {/* Medical Visit Requests Section */}
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <div 
-                  className="h-5 w-5 rounded-lg flex items-center justify-center"
-                  style={{
-                    background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`
-                  }}
-                >
-                  <Stethoscope className="h-4 w-4 text-white" />
-                </div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Demandes de visite médicale</h2>
-              </div>
-
-              {/* Statistics Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <Card className="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20 border-slate-200 dark:border-slate-700">
-                  <CardContent className="p-2">
-                    <div className="text-2xl font-bold text-slate-600 dark:text-slate-400">{requestStats.pending}</div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400">En attente</div>
                   </CardContent>
                 </Card>
-                <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-700">
-                  <CardContent className="p-2">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{requestStats.proposed}</div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Proposées</div>
-                  </CardContent>
-                </Card>
-                <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700">
-                  <CardContent className="p-2">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{requestStats.confirmed}</div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Confirmées</div>
-                  </CardContent>
-                </Card>
-              </div>
 
-              {/* Pending Requests List */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-md font-semibold text-slate-900 dark:text-slate-100">
-                    Demandes en attente ({pendingRequests.length})
-                  </h3>
-                  <Link href="/demande-visite-medicale-infirmier">
-                    <Button size="sm" className="bg-white text-slate-900 border-2 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700">
-                      Voir tout
-                    </Button>
-                  </Link>
-                </div>
-
-                {loadingRequests ? (
-                  <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-300"></div>
-                    <span className="ml-2 text-slate-600">Chargement...</span>
+              {/* Proposed Requests */}
+              <Card className="relative group bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-blue-600 opacity-80" />
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Proposés</p>
+                      <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{metrics.proposedRequests}</p>
+                    </div>
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <AlertCircle className="h-7 w-7 text-white" />
+                    </div>
                   </div>
-                ) : pendingRequests.length > 0 ? (
-                  <div className="space-y-3">
-                    {pendingRequests.slice(0, 3).map((request) => (
-                      <Card key={request.id} className="hover:shadow-md transition-shadow bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-700 border-slate-200 dark:border-slate-600">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="font-medium text-slate-900 dark:text-slate-100">
-                                  {request.employeeName}
+                  </CardContent>
+                </Card>
+
+              {/* Confirmed Requests */}
+              <Card className="relative group bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-emerald-600 opacity-80" />
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Confirmés</p>
+                      <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{metrics.confirmedRequests}</p>
+                    </div>
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <CheckCircle className="h-7 w-7 text-white" />
+                    </div>
+                  </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+                        {/* Visit Types Distribution */}
+            <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+              <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`
+                    }}
+                  >
+                    <BarChart3 className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-slate-900 dark:text-slate-100">Types de visite</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">
+                      Répartition par type de visite pour cette période
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Reprise</span>
+                    </div>
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'REPRISE').length}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Embauche</span>
+                    </div>
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'EMBAUCHE').length}
                                 </span>
-                                <Badge variant="secondary">
-                                  Normal
-                                </Badge>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-slate-500"></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Spontanée</span>
                               </div>
-                              <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                                {request.motif}
-                              </p>
-                              <div className="flex items-center gap-4 text-xs text-slate-500">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {format(new Date(request.dateSouhaitee), "dd/MM/yyyy", { locale: fr })}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {request.employeeDepartment}
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'SPONTANEE').length}
                                 </span>
                               </div>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Périodique</span>
                             </div>
-                            <Link href="/demande-visite-medicale-infirmier">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="bg-white text-slate-900 border-2 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700 font-medium"
-                              >
-                                Traiter
-                              </Button>
-                            </Link>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'PERIODIQUE').length}
+                    </span>
                   </div>
-                ) : (
-                  <div className="text-center p-8 text-slate-600">
-                    <Stethoscope className="h-12 w-12 mx-auto mb-4 text-slate-400" />
-                    <p>Aucune demande en attente</p>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Surveillance</span>
+                    </div>
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'SURVEILLANCE_PARTICULIERE').length}
+                    </span>
                   </div>
-                )}
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                                              <span className="font-medium text-slate-700 dark:text-slate-300">À l'appel du médecin</span>
               </div>
+                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                      {filteredRequests.filter(r => r.visitType === 'APPEL_MEDECIN').length}
+                    </span>
             </div>
           </div>
+              </CardContent>
+            </Card>
 
 
         </div>
