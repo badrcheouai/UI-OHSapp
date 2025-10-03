@@ -8,13 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Mail, Shield, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { useEffect } from "react"
 
 export default function ForgotPasswordPage() {
   const [language, setLanguage] = useState<"en" | "fr">("fr")
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [timer, setTimer] = useState(60)
+  const [warning, setWarning] = useState("")
 
   const text = {
     fr: {
@@ -29,6 +31,7 @@ export default function ForgotPasswordPage() {
         "Nous avons envoyé un lien de réinitialisation à votre adresse email. Veuillez vérifier votre boîte de réception et suivre les instructions.",
       resendLink: "Renvoyer le Lien",
       sending: "Envoi...",
+      warning: "Veuillez entrer votre email.",
     },
     en: {
       title: "Reset Your Password",
@@ -42,6 +45,7 @@ export default function ForgotPasswordPage() {
         "We've sent a password reset link to your email address. Please check your inbox and follow the instructions.",
       resendLink: "Resend Link",
       sending: "Sending...",
+      warning: "Please enter your email.",
     },
   }
 
@@ -50,73 +54,151 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
     try {
-      // Simulate API call to Spring Boot backend
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+      console.log("Sending password reset request to:", `${API_URL}/api/v1/account/forgot-password`);
+      console.log("Email:", email);
+      
+      const response = await fetch(`${API_URL}/api/v1/account/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      
+      console.log("Response status:", response.status);
+      const responseData = await response.json();
+      console.log("Response data:", responseData);
+      
+      if (response.ok) {
+        console.log("Password reset email sent successfully");
+      } else {
+        console.log("Password reset configured for next login");
+      }
+      
+      // Always show submitted, regardless of backend response, for security
       setIsSubmitted(true)
     } catch (error) {
-      console.error("Password reset failed:", error)
+      console.error("Error sending password reset:", error);
+      setIsSubmitted(true)
     } finally {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    // On mount, check if any timer is running and restore state
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('reset-timer-'));
+    if (keys.length > 0) {
+      const key = keys[0];
+      const last = localStorage.getItem(key);
+      if (last) {
+        const diff = 60 - Math.floor((Date.now() - parseInt(last, 10)) / 1000);
+        if (diff > 0) {
+          setEmail(key.replace('reset-timer-', ''));
+          setTimer(diff);
+          setIsSubmitted(true);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    // On mount, restore timer from localStorage
+    if (isSubmitted && email) {
+      const key = `reset-timer-${email}`;
+      const last = localStorage.getItem(key);
+      if (last) {
+        const diff = 60 - Math.floor((Date.now() - parseInt(last, 10)) / 1000);
+        if (diff > 0) setTimer(diff);
+      }
+    }
+  }, [isSubmitted, email]);
+
+  useEffect(() => {
+    if (isSubmitted && timer > 0 && email) {
+      const key = `reset-timer-${email}`;
+      localStorage.setItem(key, Date.now().toString());
+      const interval = setInterval(() => setTimer(t => t - 1), 1000);
+      return () => clearInterval(interval);
+    }
+    if (timer <= 0 && email) {
+      localStorage.removeItem(`reset-timer-${email}`);
+    }
+  }, [isSubmitted, timer, email]);
 
   const handleResend = async () => {
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+      console.log("Resending password reset request to:", `${API_URL}/api/v1/account/forgot-password`);
+      console.log("Email:", email);
+      
+      const response = await fetch(`${API_URL}/api/v1/account/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      
+      console.log("Resend response status:", response.status);
+      const responseData = await response.json();
+      console.log("Resend response data:", responseData);
+      
+      if (response.ok) {
+        console.log("Password reset email resent successfully");
+      } else {
+        console.log("Password reset configured for next login");
+      }
+      
+      setTimer(60)
     } catch (error) {
-      console.error("Resend failed:", error)
-    } finally {
-      setIsLoading(false)
+      console.error("Error resending password reset:", error);
     }
+    setIsLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <Link href="/login" className="flex items-center gap-3">
-            <div className="h-10 w-10 ohse-gradient-burgundy rounded-xl shadow-lg flex items-center justify-center">
+            <div className="h-10 w-10 bg-gradient-to-br from-red-600 to-red-700 dark:from-red-500 dark:to-red-600 rounded-xl shadow-lg flex items-center justify-center">
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold ohse-text-burgundy">OHSE CAPITAL</span>
+            <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-200 bg-clip-text text-transparent">OHSE CAPITAL</span>
           </Link>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="h-9 px-3 text-sm font-medium rounded-lg ohse-btn-secondary"
+              className="h-9 px-3 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 hover:shadow-md"
             >
               {language === "en" ? "FR" : "EN"}
             </button>
-            <ThemeToggle />
           </div>
         </div>
 
         {/* Main Card */}
-        <Card className="ohse-card shadow-xl">
+        <Card className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-0 shadow-2xl rounded-2xl">
           <CardHeader className="text-center pb-6">
-            <div className="h-16 w-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="h-16 w-16 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               {isSubmitted ? (
-                <CheckCircle className="h-8 w-8 ohse-text-green" />
+                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               ) : (
-                <Mail className="h-8 w-8 ohse-text-burgundy" />
+                <Mail className="h-8 w-8 text-slate-600 dark:text-slate-400" />
               )}
             </div>
-            <CardTitle className="text-2xl font-bold ohse-text-primary">
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-200 bg-clip-text text-transparent">
               {isSubmitted ? t.successTitle : t.title}
             </CardTitle>
-            <p className="text-sm ohse-text-secondary mt-2">{isSubmitted ? t.successMessage : t.subtitle}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{isSubmitted ? t.successMessage : t.subtitle}</p>
           </CardHeader>
 
           <CardContent>
             {!isSubmitted ? (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="ohse-text-burgundy font-medium">
+                  <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">
                     {t.email}
                   </Label>
                   <Input
@@ -126,14 +208,14 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-11 ohse-input"
+                    className="h-11 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 dark:focus:border-slate-500 focus:ring-slate-400 dark:focus:ring-slate-500"
                   />
                 </div>
 
                 <Button
                   type="submit"
                   disabled={isLoading || !email}
-                  className="w-full h-11 ohse-btn-primary shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="w-full h-11 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
                 >
                   {isLoading ? (
                     <>
@@ -147,7 +229,7 @@ export default function ForgotPasswordPage() {
 
                 <Link
                   href="/login"
-                  className="flex items-center justify-center gap-2 text-sm ohse-text-secondary hover:ohse-text-burgundy transition-colors duration-200"
+                  className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   {t.backToLogin}
@@ -156,24 +238,34 @@ export default function ForgotPasswordPage() {
             ) : (
               <div className="space-y-6">
                 <Button
-                  onClick={handleResend}
-                  disabled={isLoading}
+                  onClick={() => {
+                    if (!email) {
+                      setWarning(t.warning);
+                      return;
+                    }
+                    setWarning("");
+                    handleResend();
+                  }}
+                  disabled={isLoading || timer > 0 || !email}
                   variant="outline"
-                  className="w-full h-11 ohse-btn-secondary bg-transparent"
+                  className="w-full h-11 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all duration-300 hover:shadow-md"
                 >
                   {isLoading ? (
                     <>
                       <div className="loading-spinner mr-2" />
                       {t.sending}
                     </>
+                  ) : timer > 0 ? (
+                    `${t.resendLink} (${timer})`
                   ) : (
                     t.resendLink
                   )}
                 </Button>
+                {warning && <div className="text-red-600 text-sm text-center">{warning}</div>}
 
                 <Link
                   href="/login"
-                  className="flex items-center justify-center gap-2 text-sm ohse-text-secondary hover:ohse-text-burgundy transition-colors duration-200"
+                  className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   {t.backToLogin}

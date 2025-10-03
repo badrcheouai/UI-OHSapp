@@ -1,0 +1,102 @@
+/* OHSapp Keycloak Login Theme - login.css */
+
+body, html {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff 0%, #f3f4f6 60%, #f87171 100%);
+  font-family: Arial, Helvetica, sans-serif;
+  color: #1f2937;
+}
+
+#kc-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+#kc-header-wrapper {
+  font-size: 2rem;
+  font-weight: bold;
+  background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+  padding: 1.5rem 0;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 24px rgba(220,38,38,0.08);
+  margin-bottom: 2rem;
+}
+
+#kc-form-login {
+  background: rgba(255,255,255,0.95);
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 24px rgba(220,38,38,0.08);
+  padding: 2rem 2.5rem;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+#kc-form-buttons input[type="submit"], .btn, button, input[type="submit"] {
+  background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.75rem 2rem;
+  margin-top: 1rem;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.08);
+  transition: background 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+#kc-form-buttons input[type="submit"]:hover, .btn:hover, button:hover {
+  background: linear-gradient(90deg, #b91c1c 0%, #dc2626 100%);
+  transform: scale(1.03);
+}
+
+input[type="text"], input[type="password"], input[type="email"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  background: #fff;
+  color: #1f2937;
+  transition: border 0.2s;
+}
+input:focus {
+  border: 1.5px solid #dc2626;
+  outline: none;
+}
+
+#kc-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+#kc-logo img {
+  height: 64px;
+  width: auto;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  body, html {
+    background: linear-gradient(135deg, #18181b 0%, #1e293b 60%, #991b1b 100%);
+    color: #f3f4f6;
+  }
+  #kc-header-wrapper {
+    background: linear-gradient(90deg, #991b1b 0%, #dc2626 100%);
+    color: #fff;
+  }
+  #kc-form-login {
+    background: rgba(30,41,59,0.95);
+    color: #f3f4f6;
+  }
+  input[type="text"], input[type="password"], input[type="email"] {
+    background: #18181b;
+    color: #f3f4f6;
+    border: 1px solid #334155;
+  }
+  input:focus {
+    border: 1.5px solid #f87171;
+  }
+}
