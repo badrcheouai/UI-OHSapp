@@ -7,7 +7,7 @@ import { AppProviders } from "./AppProviders"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "OHSE Capital - Occupational Health & Safety Excellence",
+  title: "OSHapp - Occupational Health & Safety Excellence",
   description: "Plateforme intégrée de gestion de la santé et sécurité au travail pour les entreprises modernes",
     generator: 'v0.dev'
 }

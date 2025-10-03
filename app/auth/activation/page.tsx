@@ -6,11 +6,12 @@ import { Label } from '../../../components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
 import { Mail, Shield, LogOut, Globe } from "lucide-react";
 import Link from "next/link";
-import { ThemeToggle } from '../../../components/theme-toggle';
+import { ThemeSelector } from '../../../components/theme-selector';
 import { useToast } from '../../../components/ui/use-toast';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 export default function ActivationPage() {
   const [code, setCode] = useState('');
@@ -21,11 +22,10 @@ export default function ActivationPage() {
   const [language, setLanguage] = useState<'en' | 'fr'>('fr');
   const { toast } = useToast();
   const { logout, accessToken, user } = useAuth();
-  const [hover, setHover] = useState(false);
-  const [focus, setFocus] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { themeColors } = useTheme();
 
   const text = {
     fr: {
@@ -65,7 +65,7 @@ export default function ActivationPage() {
         return;
       }
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
-      const response = await fetch(`${API_URL}/account/verify-activation-code`, {
+      const response = await fetch(`${API_URL}/api/v1/account/verify-activation-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,7 +112,7 @@ export default function ActivationPage() {
       if (!user || !user.email) {
         throw new Error("User or user email is missing");
       }
-      const resendUrl = "http://localhost:8081/account/send-activation-code";
+      const resendUrl = `${API_URL}/api/v1/account/send-activation-code`;
       const resendBody = JSON.stringify({ email: user.email });
       const resendHeaders = {
         "Content-Type": "application/json",
@@ -181,54 +181,73 @@ export default function ActivationPage() {
   }, [success, redirectCountdown]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 flex items-center justify-center p-6 relative">
-      {/* Profile menu top right */}
+    <div
+      className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-background"
+      style={{
+        background: `radial-gradient(48rem 32rem at 70% -10%, ${themeColors.colors.primary[500]}0D 0%, transparent 60%),
+                     radial-gradient(56rem 36rem at -10% 110%, ${themeColors.colors.primary[700]}12 0%, transparent 60%),
+                     #ffffff`,
+      }}
+    >
+      {/* Top-right controls (theme + logout), consistent with other pages */}
       <div className="absolute top-6 right-8 flex items-center gap-2 z-10">
         <button
           onClick={() => setLanguage(language === 'en' ? 'fr' : 'en')}
-          className="h-9 px-3 text-sm font-medium rounded-lg ohse-btn-secondary flex items-center gap-2"
+          className="h-9 px-3 text-sm font-medium rounded-lg theme-button-secondary flex items-center gap-2"
         >
           <Globe className="h-4 w-4" />
           {language === 'en' ? 'FR' : 'EN'}
         </button>
-        <ThemeToggle />
+        <div>
+          <ThemeSelector />
+        </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={logout}
-          className="ohse-text-secondary hover:bg-red-900 hover:text-white transition-colors"
+          className="theme-button-secondary border border-border hover:bg-destructive hover:text-destructive-foreground transition-colors"
         >
           <LogOut className="h-4 w-4 mr-2" />
           {t.logout}
         </Button>
       </div>
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative z-10">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <Link href="/login" className="flex items-center gap-3">
-            <div className="h-10 w-10 ohse-gradient-burgundy rounded-xl shadow-lg flex items-center justify-center">
+            <div
+              className="h-10 w-10 rounded-xl shadow-lg flex items-center justify-center"
+              style={{
+                background: `linear-gradient(135deg, ${themeColors.colors.primary[500]} 0%, ${themeColors.colors.primary[700]} 100%)`,
+              }}
+            >
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold ohse-text-burgundy">OHSE CAPITAL</span>
+            <span className="text-xl font-bold text-foreground">OSHapp</span>
           </Link>
         </div>
         {/* Main Card */}
-        <Card className="ohse-card shadow-xl">
+        <Card className="theme-card shadow-xl">
           <CardHeader className="text-center pb-6">
-            <div className="h-16 w-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Mail className="h-8 w-8 ohse-text-burgundy" />
+            <div
+              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-3xl"
+              style={{
+                background: `linear-gradient(135deg, ${themeColors.colors.primary[500]} 0%, ${themeColors.colors.primary[600]} 40%, ${themeColors.colors.primary[800]} 100%)`,
+              }}
+            >
+              <Mail className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold ohse-text-primary">
+            <CardTitle className="text-2xl font-bold text-slate-800 dark:text-white">
               {t.title}
             </CardTitle>
-            <p className="text-sm ohse-text-secondary mt-2">
+            <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
               {t.subtitle}
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleActivate} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="activation-code" className="ohse-text-burgundy font-medium">
+                <Label htmlFor="activation-code" className="text-foreground font-medium">
                   {t.code}
                 </Label>
                 <Input
@@ -240,11 +259,11 @@ export default function ActivationPage() {
                   disabled={loading || success}
                   required
                   maxLength={8}
-                  className="h-11 ohse-input"
+                  className="h-11 theme-input text-foreground placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-2 focus:ring-ring focus:ring-offset-0 border border-border shadow-none bg-background/60"
                 />
               </div>
               {error && (
-                <div className="text-red-600 text-xs text-center mt-2">
+                <div className="text-destructive text-xs text-center mt-2">
                   {error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid')
                     ? (language === 'fr'
                         ? 'Code invalide ou expiré. Veuillez utiliser le code le plus récent envoyé à votre email.'
@@ -253,45 +272,32 @@ export default function ActivationPage() {
                 </div>
               )}
               {success && (
-                <div className="text-green-600 text-sm text-center flex flex-col items-center gap-2">
+                <div className="text-emerald-600 dark:text-emerald-400 text-sm text-center flex flex-col items-center gap-2">
                   {t.success}
                   <div className="mt-2 flex items-center gap-2 animate-pulse">
                     <span>{language === 'fr' ? 'Redirection dans' : 'Redirecting in'}</span>
                     <span className="font-bold text-lg">{redirectCountdown}</span>
-                    <svg className="w-5 h-5 text-green-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                    <svg className="w-5 h-5 text-emerald-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
                     <span>{language === 'fr' ? 'secondes...' : 'seconds...'}</span>
                   </div>
                 </div>
               )}
-              <Button type="submit" className="w-full h-11 ohse-btn-primary shadow-lg hover:shadow-xl transition-all duration-300" disabled={loading || success}>
+              <Button
+                type="submit"
+                variant="default"
+                className="w-full h-11 text-white shadow-lg hover:shadow-xl transition-all duration-300 focus-visible:ring-offset-0 bg-transparent hover:bg-transparent border-0"
+                style={{
+                  background: `linear-gradient(135deg, ${themeColors.colors.primary[500]} 0%, ${themeColors.colors.primary[600]} 40%, ${themeColors.colors.primary[800]} 100%)`,
+                }}
+                disabled={loading || success}
+              >
                 {loading ? t.verify + '...' : t.verify}
               </Button>
             </form>
             <div className="flex flex-col items-center mt-6">
               <Button
                 variant="outline"
-                className="w-full h-11 ohse-btn-secondary bg-transparent"
-                style={{
-                  borderColor: (hover || focus) ? '#cbd5e1' : '#e2e8f0',
-                  borderWidth: '2px',
-                  backgroundColor: hover ? '#f1f5f9' : (resendTimer > 0 ? '#f8fafc' : ''),
-                  color: hover ? '#0f172a' : (resendTimer > 0 ? '#64748b' : ''),
-                  transition: 'all 0.2s',
-                  boxShadow: 'none',
-                  outline: 'none',
-                  cursor: resendTimer > 0 || loading || success || isResending ? 'not-allowed' : 'pointer',
-                  opacity: resendTimer > 0 || loading || success || isResending ? 0.6 : 1,
-                }}
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
-                onFocus={() => setFocus(true)}
-                onBlur={() => setFocus(false)}
-                onMouseDown={e => {
-                  e.currentTarget.style.borderColor = '#cbd5e1';
-                  e.currentTarget.style.backgroundColor = '#f1f5f9';
-                  e.currentTarget.style.outline = 'none';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                className="w-full h-11 bg-background text-foreground border border-border hover:bg-accent/50 focus-visible:ring-offset-0"
                 onClick={handleResend}
                 disabled={isResending || resendTimer > 0}
               >

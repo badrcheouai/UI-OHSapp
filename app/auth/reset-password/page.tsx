@@ -137,7 +137,7 @@ export default function ResetPasswordPage() {
             <div className="h-10 w-10 ohse-gradient-burgundy rounded-xl shadow-lg flex items-center justify-center">
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold ohse-text-burgundy">OHSE CAPITAL</span>
+            <span className="text-xl font-bold ohse-text-burgundy">OSHapp</span>
           </Link>
           <div className="flex items-center gap-2">
             <button

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Medical Visit Request System is a comprehensive solution for managing employee medical visit requests in the OHSE Capital application. It provides a complete workflow from request submission to confirmation, with notifications and email communications.
+The Medical Visit Request System is a comprehensive solution for managing employee medical visit requests in the OSHapp application. It provides a complete workflow from request submission to confirmation, with notifications and email communications.
 
 ## Features
 
@@ -28,7 +28,7 @@ The Medical Visit Request System is a comprehensive solution for managing employ
    - Request confirmation emails
    - Proposal notification emails
    - Confirmation emails
-   - Branded with OHSE Capital styling
+   - Branded with OSHapp styling
 
 4. **Frontend Integration**
    - API functions for all operations

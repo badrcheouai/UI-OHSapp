@@ -380,7 +380,7 @@ export default function RHEmployeesPage() {
         'Genre': 'MALE',
         'Date de naissance': '1990-05-15',
         'Adresse': '123 Rue de la Paix, Paris',
-        'Entreprise': 'OHSE CAPITAL',
+        'Entreprise': 'OSHapp',
         'Numéro matricule': 'MAT-1234567890'
       }]
       const worksheet = XLSX.utils.json_to_sheet(sample, { header: headers })
@@ -840,7 +840,7 @@ export default function RHEmployeesPage() {
                     value={newEmployee.company}
                     onChange={(e) => setNewEmployee({...newEmployee, company: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-                    placeholder="Ex: OHSE CAPITAL"
+                    placeholder="Ex: OSHapp"
                   />
                 </div>
                 <div className="space-y-3">
@@ -1166,7 +1166,7 @@ export default function RHEmployeesPage() {
                       value={selectedEmployee.company}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, company: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-                      placeholder="Ex: OHSE CAPITAL"
+                      placeholder="Ex: OSHapp"
                     />
                   </div>
                   <div className="space-y-2">
