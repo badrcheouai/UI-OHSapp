@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User, ChevronDown, Home, Stethoscope, Globe, Users, Calendar } from "lucide-react"
+import { LogOut, User, ChevronDown, Home, Stethoscope, Globe, Users, Calendar, Pill } from "lucide-react"
 import Link from "next/link"
 import { useState, useContext } from "react"
 import { useTranslation, LanguageProvider } from "@/components/language-toggle"
@@ -40,7 +40,8 @@ function DashboardNavigationContent({ userRole, currentPage = "dashboard" }: Das
         "Visite Médicale": "Visite Médicale",
         "Demande de Visite Médicale": "Demande de Visite Médicale",
         "Gestion des salariés": "Gestion des salariés",
-        "Visites médicales": "Visites médicales"
+        "Visites médicales": "Visites médicales",
+        "Gestion de pharmacie": "Gestion de pharmacie"
       },
       en: {
         "Mon profil": "My Profile",
@@ -49,7 +50,8 @@ function DashboardNavigationContent({ userRole, currentPage = "dashboard" }: Das
         "Visite Médicale": "Medical Visit",
         "Demande de Visite Médicale": "Medical Visit Request",
         "Gestion des salariés": "Employee Management",
-        "Visites médicales": "Medical Visits"
+        "Visites médicales": "Medical Visits",
+        "Gestion de pharmacie": "Pharmacy Management"
       }
     }
     return translations[language][key] || key
@@ -167,6 +169,13 @@ function DashboardNavigationContent({ userRole, currentPage = "dashboard" }: Das
                currentPage === "demande-visite-medicale-infirmier" || 
                currentPage === "demande-visite-medicale-medecin"
     },
+    // Infirmier-only: Gestion de pharmacie
+    ...(userRole === "INFIRMIER_ST" ? [{
+      icon: Pill,
+      label: t("Gestion de pharmacie"),
+      href: "/gestion-pharmacie",
+      current: currentPage === "gestion-pharmacie"
+    }] : [])
   ]
 
   // Choose navigation items based on role
