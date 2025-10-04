@@ -208,6 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const performLogout = () => {
         console.log("🔧 Performing actual logout...")
         
+        // Set logout flag to prevent navigation guards from interfering
+        setIsLoggingOut(true)
+        
         // Use the proper logout function that handles back-channel logout
         authLogout()
         console.log("🔑 Back-channel logout sent to Keycloak")
@@ -239,9 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Hide logout overlay
         setShowLogoutOverlay(false)
         
-        // Redirect to login page
+        // Redirect to login page with force reload to prevent infinite redirects
         console.log("🔄 Redirecting to login page")
-        router.push("/login")
+        window.location.href = "/login"
         
         // Reset logout flag
         setIsLoggingOut(false)

@@ -193,7 +193,7 @@ function DashboardNavigationContent({ userRole, currentPage = "dashboard" }: Das
                 <CompanyLogo />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
-                OHSE CAPITAL
+                OSHapp
               </span>
             </div>
             

@@ -45,7 +45,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
     "input-otp": "latest",
-    "jwt-decode": "^4.0.0",
+    "jwt-decode": "latest",
     "keycloak-js": "latest",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
@@ -62,6 +62,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
     "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

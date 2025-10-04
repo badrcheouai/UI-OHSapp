@@ -21,7 +21,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Clock as ClockIcon,
-  Trash2
+  Trash2,
+  Hourglass
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -63,11 +64,19 @@ interface MedicalVisitStatusProps {
 
 // Helper function to convert API data to component format
 const convertAPIRequestToComponentFormat = (apiRequest: APIMedicalVisitRequest): MedicalVisitRequest => {
+  // For pending status (when RH is creating the request), don't show detailed reprise/embauche info
+  // Only show detailed info when it's already proposed by medical staff
+  let displayReason = apiRequest.motif;
+  if (apiRequest.status === 'PENDING' && (apiRequest.visitType === 'REPRISE' || apiRequest.visitType === 'EMBAUCHE')) {
+    // For pending reprise/embauche requests, show generic labels
+    displayReason = apiRequest.visitType === 'REPRISE' ? 'Reprise' : 'Embauche';
+  }
+
   return {
     id: apiRequest.id.toString(),
     status: apiRequest.status.toLowerCase() as "pending" | "proposed" | "confirmed" | "rejected" | "cancelled",
     employeeName: apiRequest.employeeName,
-    reason: apiRequest.motif,
+    reason: displayReason,
     dateSouhaitee: new Date(apiRequest.dateSouhaitee),
     proposedDate: apiRequest.proposedDate ? new Date(apiRequest.proposedDate) : undefined,
     proposedTime: apiRequest.proposedTime,
@@ -103,7 +112,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
       case "pending":
         return {
           icon: Clock,
-          color: "bg-slate-500",
+          color: "bg-orange-500",
           text: "En attente",
           description: "Votre demande est en cours de traitement"
         }
@@ -172,16 +181,53 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
             </div>
             <Badge 
               variant="outline" 
-              className={`border-2 px-4 py-2 text-sm font-semibold ${
-                componentRequest.status === "pending" ? "border-slate-500 bg-slate-100 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300" :
-                componentRequest.status === "proposed" ? "border-orange-500 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" :
-                componentRequest.status === "confirmed" ? "border-green-600 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
-                componentRequest.status === "rejected" ? "border-red-600 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" :
-                componentRequest.status === "cancelled" ? "border-gray-600 bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300" :
-                "border-gray-600 bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300"
+              className={`border-2 px-6 py-3 text-base font-bold flex items-center gap-3 shadow-lg ${
+                componentRequest.status === "pending" ? "border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-700 dark:text-amber-200 shadow-amber-200/50 dark:shadow-amber-800/30" :
+                componentRequest.status === "proposed" ? "border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-200 shadow-blue-200/50 dark:shadow-blue-800/30" :
+                componentRequest.status === "confirmed" ? "border-emerald-600 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30" :
+                componentRequest.status === "rejected" ? "border-red-600 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 text-red-700 dark:text-red-200 shadow-red-200/50 dark:shadow-red-800/30" :
+                componentRequest.status === "cancelled" ? "border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 text-gray-700 dark:text-gray-200 shadow-gray-200/50 dark:shadow-gray-800/30" :
+                "border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 text-gray-700 dark:text-gray-200 shadow-gray-200/50 dark:shadow-gray-800/30"
               }`}
             >
-              {componentRequest.status.toUpperCase()}
+              {componentRequest.status === "pending" ? (
+                <>
+                  <div className="h-4 w-4 rounded-full bg-amber-500 flex items-center justify-center">
+                    <Hourglass className="h-2.5 w-2.5 text-white animate-spin" style={{ animationDuration: '2s' }} />
+                  </div>
+                  EN ATTENTE
+                </>
+              ) : componentRequest.status === "proposed" ? (
+                <>
+                  <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                    <Clock className="h-2.5 w-2.5 text-white" />
+                  </div>
+                  CRÉNEAU PROPOSÉ
+                </>
+              ) : componentRequest.status === "confirmed" ? (
+                <>
+                  <div className="h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <CheckCircle className="h-2.5 w-2.5 text-white" />
+                  </div>
+                  CONFIRMÉ
+                </>
+              ) : componentRequest.status === "rejected" ? (
+                <>
+                  <div className="h-4 w-4 rounded-full bg-red-500 flex items-center justify-center">
+                    <XCircle className="h-2.5 w-2.5 text-white" />
+                  </div>
+                  REJETÉ
+                </>
+              ) : componentRequest.status === "cancelled" ? (
+                <>
+                  <div className="h-4 w-4 rounded-full bg-gray-500 flex items-center justify-center">
+                    <Trash2 className="h-2.5 w-2.5 text-white" />
+                  </div>
+                  ANNULÉ
+                </>
+              ) : (
+                (componentRequest.status as string).toUpperCase()
+              )}
             </Badge>
           </div>
         </CardContent>
@@ -212,7 +258,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   <Building className="h-4 w-4 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Département</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Poste</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{componentRequest.department}</p>
                 </div>
               </div>
@@ -223,7 +269,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Raison</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Type de visite</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{componentRequest.reason}</p>
                 </div>
               </div>
@@ -372,30 +418,11 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
 
       {/* Action Buttons */}
       <div className="flex gap-2 mt-4">
-        {/* Reset Button for Development Testing */}
-        {process.env.NODE_ENV === 'development' && (
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (confirm("Êtes-vous sûr de vouloir supprimer TOUTES vos demandes de visite médicale ? (Mode développement)")) {
-                // Call the reset callback if provided
-                if (onResetRequest) {
-                  await onResetRequest()
-                }
-              }
-            }}
-            className="px-4 py-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Clock className="h-5 w-5 mr-2" />
-            <span>Reset (Dev)</span>
-          </Button>
-        )}
-
         {/* Action Buttons for Proposed Status - Employees can only Accept/Reject */}
         {componentRequest.status === "proposed" && (
           <>
             <Button
-              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg text-base font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
               onClick={async () => {
                 try {
                   // Call the accept API
@@ -422,7 +449,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
             </Button>
             <Button
               variant="destructive"
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg text-base font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
               onClick={() => setIsRejectDialogOpen(true)}
             >
               <XCircle className="h-5 w-5 mr-3" />
@@ -431,12 +458,54 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
           </>
         )}
 
+        {/* Information for Rejected Status */}
+        {componentRequest.status === "rejected" && (
+          <div className="flex gap-2 mt-4 w-full">
+            {/* Reset Button for Development Testing */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (confirm("Êtes-vous sûr de vouloir supprimer TOUTES vos demandes de visite médicale ? (Mode développement)")) {
+                    // Call the reset callback if provided
+                    if (onResetRequest) {
+                      await onResetRequest()
+                    }
+                  }
+                }}
+                className="px-5 py-2.5 border-2 border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex-shrink-0"
+              >
+                <Clock className="h-5 w-4 w-5 mr-2" />
+                <span>Reset (Dev)</span>
+              </Button>
+            )}
+
+            {/* Rejected Status Message */}
+            <div className="flex-1 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-6 w-6 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                    Proposition refusée
+                  </h4>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    Vu que vous avez refusé, la prochaine proposition sera automatiquement confirmée. Veuillez veiller à ce que vous vous mettiez d'accord directement.
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    Contact: +212 6 41 79 85 43
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       {/* Reject Proposal Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
           <DialogHeader>
-            <DialogTitle>Refuser la proposition</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-slate-900 dark:text-slate-100">Refuser la proposition</DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
               Veuillez indiquer la raison du refus (optionnel).
             </DialogDescription>
           </DialogHeader>
@@ -444,9 +513,17 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
             placeholder="Ex: Le créneau ne me convient pas"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
+            className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 shadow-sm resize-none"
+            rows={4}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>Annuler</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsRejectDialogOpen(false)}
+              className="border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Annuler
+            </Button>
             <Button
               disabled={isSubmittingReject}
               onClick={async () => {
@@ -455,7 +532,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   await medicalVisitAPI.rejectProposal(parseInt(componentRequest.id), rejectReason || "Refusé par l'employé")
                   toast({
                     title: "Proposition refusée",
-                    description: "Votre refus a été transmis au service médical.",
+                    description: "Votre refus a été transmis au service médical. Veuillez contacter le service médical pour vous mettre d'accord.",
                   })
                   setIsRejectDialogOpen(false)
                   window.location.reload()
@@ -466,6 +543,8 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   setIsSubmittingReject(false)
                 }
               }}
+              className="text-white"
+              style={{background: `linear-gradient(135deg, #ef4444, #dc2626)`}}
             >
               Confirmer le refus
             </Button>
@@ -530,7 +609,12 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   return (
                     <div key={index} className={`flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg ${proposerLabel === "Salarié" ? "bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-400" : "bg-slate-50 dark:bg-slate-800"}`}>
                       <div className="flex items-center gap-3 mb-2 md:mb-0">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${proposerLabel === "Salarié" ? "bg-blue-200 text-blue-800" : proposerLabel === "Infirmier" ? "bg-green-200 text-green-800" : proposerLabel === "Médecin" ? "bg-orange-200 text-orange-800" : "bg-slate-200 text-slate-800"}`}>{proposerLabel}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold shadow-sm ${
+                          proposerLabel === "Salarié" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 border border-blue-200 dark:border-blue-700" : 
+                          proposerLabel === "Infirmier" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700" : 
+                          proposerLabel === "Médecin" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 border border-amber-200 dark:border-amber-700" : 
+                          "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                        }`}>{proposerLabel}</span>
                         <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                         <span className="text-sm text-slate-600 dark:text-slate-400">
                           {proposal.proposedDate ? format(new Date(proposal.proposedDate), "dd/MM/yyyy", { locale: fr }) : "-"} à {proposal.proposedTime || "-"}
@@ -540,7 +624,18 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                         {proposal.reason && (
                           <span className="text-xs italic text-slate-500 dark:text-slate-400">{proposal.reason}</span>
                         )}
-                        <span className={`text-xs font-semibold ${colorClass}`}>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 ${
+                          displayStatusLabel === "En attente" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 border border-amber-200 dark:border-amber-700" :
+                          displayStatusLabel === "Accepté" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700" :
+                          displayStatusLabel === "Rejeté" ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 border border-red-200 dark:border-red-700" :
+                          displayStatusLabel === "Remplacé" ? "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200 border border-gray-200 dark:border-gray-700" :
+                          "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                        }`}>
+                          {displayStatusLabel === "En attente" && (
+                            <div className="h-2 w-2 rounded-full bg-amber-500 flex items-center justify-center">
+                              <Hourglass className="h-1 w-1 text-white animate-spin" style={{ animationDuration: '2s' }} />
+                            </div>
+                          )}
                           {displayStatusLabel}
                         </span>
                         <span className="text-xs text-slate-400 dark:text-slate-500">

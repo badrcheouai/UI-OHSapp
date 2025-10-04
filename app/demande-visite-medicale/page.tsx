@@ -15,7 +15,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 
-import { CalendarIcon, Clock, ArrowLeft, Stethoscope, AlertCircle, CheckCircle, Info } from "lucide-react"
+import { CalendarIcon, Clock, ArrowLeft, Stethoscope, AlertCircle, CheckCircle, Info, FileText } from "lucide-react"
 import { EnhancedCalendar } from "@/components/enhanced-calendar"
 import { EnhancedTimePicker } from "@/components/enhanced-time-picker"
 import { format } from "date-fns"
@@ -46,6 +46,10 @@ export default function DemandeVisiteMedicale() {
   const [activeRequest, setActiveRequest] = useState<MedicalVisitRequest | null>(null)
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false)
   const [activeTab, setActiveTab] = useState<"planifier"|"consulter">("planifier")
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [isSubmittingReject, setIsSubmittingReject] = useState(false)
+  const [isAcceptLoading, setIsAcceptLoading] = useState(false)
 
   // Helper function to get employee ID from user
   const getEmployeeId = async () => {
@@ -897,41 +901,68 @@ export default function DemandeVisiteMedicale() {
             {/* Consulter Tab Content */}
             {activeTab === "consulter" && (
               <div className="space-y-6">
-                <Card className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200 dark:border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                      <Stethoscope className="h-5 w-5" style={{ color: getThemeColor(600) }} />
+                <Card 
+                  className="border-0 backdrop-blur-sm"
+                  style={{
+                    background: isDark 
+                      ? `linear-gradient(135deg, #0f172a, #1e293b)`
+                      : `linear-gradient(135deg, #f8fafc, #e2e8f0)`,
+                    boxShadow: `0 20px 40px -12px rgba(0, 0, 0, 0.1), 0 8px 16px -4px rgba(0, 0, 0, 0.05)`,
+                    borderRadius: '16px'
+                  }}
+                >
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-3 text-slate-900 dark:text-slate-100 text-xl font-bold">
+                      <div 
+                        className="h-8 w-8 rounded-xl flex items-center justify-center shadow-lg"
+                        style={{
+                          background: `linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`,
+                          boxShadow: `0 8px 16px -4px ${getThemeColor(500)}30`
+                        }}
+                      >
+                        <Stethoscope className="h-4 w-4 text-white" />
+                      </div>
                       Mes visites médicales
                     </CardTitle>
-                    <CardDescription className="text-slate-600 dark:text-slate-400">
+                    <CardDescription className="text-slate-600 dark:text-slate-400 text-base">
                       Consultez l'historique de vos demandes de visites médicales
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {currentRequest ? (
-                      <div className="space-y-4">
-                        <Card className="border border-slate-200 dark:border-slate-700">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center justify-between text-base">
+                      <div className="space-y-6">
+                        <Card 
+                          className="border-0"
+                          style={{
+                            background: isDark 
+                              ? `linear-gradient(135deg, #1e293b, #334155)`
+                              : `linear-gradient(135deg, ${getThemeColor(50)}, ${getThemeColor(100)})`,
+                            boxShadow: `0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04)`,
+                            borderRadius: '12px'
+                          }}
+                        >
+                          <CardHeader className="pb-4">
+                            <CardTitle className="flex items-center justify-between text-lg font-bold text-slate-900 dark:text-slate-100">
                               <span>Demande actuelle</span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-3">
                                 <span
-                                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  className={`px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all duration-300 hover:scale-105 ${
                                     currentRequest.status === 'CONFIRMED'
-                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-green-200/50'
                                       : currentRequest.status === 'PROPOSED'
-                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-blue-200/50'
+                                        : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-200/50'
                                   }`}
                                 >
                                   {currentRequest.status === 'CONFIRMED' ? 'Confirmé' : currentRequest.status === 'PROPOSED' ? 'Proposé' : 'En attente'}
                                 </span>
                                 {currentRequest.visitType && (
                                   <span
-                                    className="px-3 py-1 rounded-full text-xs font-medium"
+                                    className="px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all duration-300 hover:scale-105"
                                     style={{
-                                      background: isDark ? `${getThemeColor(900)}30` : `${getThemeColor(100)}`,
-                                      color: isDark ? getThemeColor(300) : getThemeColor(800)
+                                      background: `linear-gradient(135deg, ${getThemeColor(400)}, ${getThemeColor(600)})`,
+                                      color: 'white',
+                                      boxShadow: `0 4px 8px -2px ${getThemeColor(500)}30`
                                     }}
                                   >
                                     {currentRequest.visitType === 'SPONTANEE' ? 'Spontanée' :
@@ -943,68 +974,180 @@ export default function DemandeVisiteMedicale() {
                                 )}
                               </div>
                             </CardTitle>
-                            <CardDescription className="text-slate-600 dark:text-slate-400">Résumé et détails</CardDescription>
+                            <CardDescription className="text-slate-600 dark:text-slate-400 text-base">Résumé et détails</CardDescription>
                           </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                <div className="text-xs text-slate-500 dark:text-slate-400">Motif</div>
-                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.motif}</div>
+                          <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {currentRequest.visitType === 'SPONTANEE' && currentRequest.motif && (
+                                <div 
+                                  className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                  style={{
+                                    background: isDark 
+                                      ? `linear-gradient(135deg, #1e293b, #334155)`
+                                      : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                    boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                  }}
+                                >
+                                  <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Motif</div>
+                                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.motif}</div>
+                                </div>
+                              )}
+                              <div 
+                                className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                style={{
+                                  background: isDark 
+                                    ? `linear-gradient(135deg, #1e293b, #334155)`
+                                    : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                  boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                }}
+                              >
+                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Type</div>
+                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                  {currentRequest.visitType === 'SPONTANEE' ? 'Spontanée' :
+                                   currentRequest.visitType === 'PERIODIQUE' ? 'Périodique' :
+                                   currentRequest.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
+                                   currentRequest.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
+                                   currentRequest.visitType === 'REPRISE' ? 'Reprise – Visite médicale de reprise' :
+                                   currentRequest.visitType === 'EMBAUCHE' ? "Visite médicale d'embauche" : 
+                                   currentRequest.visitType || '-'}
+                                </div>
                               </div>
-                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                <div className="text-xs text-slate-500 dark:text-slate-400">Type</div>
-                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.visitType || '-'}</div>
-                              </div>
-                              <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                <div className="text-xs text-slate-500 dark:text-slate-400">Date souhaitée</div>
-                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{format(new Date(currentRequest.dateSouhaitee), "PPP", { locale: fr })}</div>
+                              <div 
+                                className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                style={{
+                                  background: isDark 
+                                    ? `linear-gradient(135deg, #1e293b, #334155)`
+                                    : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                  boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                }}
+                              >
+                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Date souhaitée</div>
+                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{format(new Date(currentRequest.dateSouhaitee), "EEEE dd MMMM yyyy", { locale: fr })}</div>
                               </div>
                               {currentRequest.heureSouhaitee && (
-                                <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                  <div className="text-xs text-slate-500 dark:text-slate-400">Heure souhaitée</div>
-                                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{currentRequest.heureSouhaitee}</div>
+                                <div 
+                                  className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                  style={{
+                                    background: isDark 
+                                      ? `linear-gradient(135deg, #1e293b, #334155)`
+                                      : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                    boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                  }}
+                                >
+                                  <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Heure souhaitée</div>
+                                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.heureSouhaitee}</div>
                                 </div>
+                              )}
+                              {/* Modalité - only once set by medical staff */}
+                              {(currentRequest.proposedModality || currentRequest.modality) && (
+                              <div 
+                                className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                style={{
+                                  background: isDark 
+                                    ? `linear-gradient(135deg, #1e293b, #334155)`
+                                    : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                  boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                }}
+                              >
+                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Modalité</div>
+                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                  {currentRequest.proposedModality === 'PRESENTIEL' ? '🏥 Présentiel' : 
+                                   currentRequest.proposedModality === 'DISTANCE' ? '💻 À distance' :
+                                   currentRequest.modality === 'PRESENTIEL' ? '🏥 Présentiel' :
+                                   currentRequest.modality === 'DISTANCE' ? '💻 À distance' :
+                                   'Non spécifiée'}
+                                </div>
+                              </div>
                               )}
                             </div>
 
-                            {/* Expandable details */}
-                            <details className="mt-2">
-                              <summary className="cursor-pointer text-sm text-slate-700 dark:text-slate-300">Voir plus de détails</summary>
-                              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {currentRequest.notes && (
-                                  <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    <div className="text-xs text-slate-500 dark:text-slate-400">Notes</div>
-                                    <div className="text-sm text-slate-900 dark:text-slate-100">{currentRequest.notes}</div>
+                            {/* Consignes Section - Display instructions from nurse/doctor */}
+                            {currentRequest.notes && (
+                              <div className="mt-4">
+                                <div 
+                                  className="p-3 rounded-lg border border-blue-200 dark:border-blue-700"
+                                  style={{
+                                    background: isDark 
+                                      ? `linear-gradient(135deg, #f0f9ff, #e0f2fe)`
+                                      : `linear-gradient(135deg, #f0f9ff, #e0f2fe)`
+                                  }}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <div>
+                                      <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                                        Consignes
+                                      </div>
+                                      <div className="text-sm text-slate-700 dark:text-slate-300 mt-1">
+                                        {currentRequest.notes}
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                                {currentRequest.modality && (
-                                  <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    <div className="text-xs text-slate-500 dark:text-slate-400">Modalité</div>
-                                    <div className="text-sm text-slate-900 dark:text-slate-100">{currentRequest.modality}</div>
-                                  </div>
-                                )}
-                                {currentRequest.confirmedDate && (
-                                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                    <div className="text-xs text-green-700 dark:text-green-300">Date confirmée</div>
-                                    <div className="text-sm font-medium text-green-800 dark:text-green-200">{format(new Date(currentRequest.confirmedDate), 'PPP', { locale: fr })}</div>
-                                  </div>
-                                )}
-                                {currentRequest.confirmedTime && (
-                                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                    <div className="text-xs text-green-700 dark:text-green-300">Heure confirmée</div>
-                                    <div className="text-sm font-medium text-green-800 dark:text-green-200">{currentRequest.confirmedTime}</div>
-                                  </div>
-                                )}
+                                </div>
                               </div>
-                            </details>
+                            )}
+
+
+
+
+
+                            {/* Actions for proposed slot: accept/refuse */}
+                            {currentRequest.status === 'PROPOSED' && (
+                              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                <Button
+                                  disabled={isAcceptLoading}
+                                  className="text-white"
+                                  style={{background:`linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`}}
+                                  onClick={async ()=>{
+                                    try {
+                                      setIsAcceptLoading(true)
+                                      await medicalVisitAPI.acceptProposal(currentRequest.id)
+                                      toast({ title: 'Proposition acceptée', description: 'Le service médical sera notifié.' })
+                                      const employeeId = await getEmployeeId()
+                                      const resp = await medicalVisitAPI.getEmployeeRequests(employeeId)
+                                      if (resp.data.length>0) setCurrentRequest(resp.data[0])
+                                    } catch (e:any) {
+                                      toast({ title: 'Erreur', description: "Impossible d'accepter la proposition.", variant: 'destructive' })
+                                    } finally {
+                                      setIsAcceptLoading(false)
+                                    }
+                                  }}
+                                >
+                                  Accepter le créneau
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={()=> setIsRejectDialogOpen(true)}
+                                  className="border-slate-300 dark:border-slate-600"
+                                >
+                                  Refuser et donner la raison
+                                </Button>
+                              </div>
+                            )}
+                            {/* Removed expandable details section */}
                           </CardContent>
                         </Card>
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <Stethoscope className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Aucune demande de visite médicale trouvée
+                      <div className="text-center py-12">
+                        <div 
+                          className="h-20 w-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"
+                          style={{
+                            background: isDark 
+                              ? `linear-gradient(135deg, #1e293b, #334155)`
+                              : `linear-gradient(135deg, ${getThemeColor(100)}, ${getThemeColor(200)})`,
+                            boxShadow: isDark 
+                              ? `0 12px 24px -6px rgba(0, 0, 0, 0.2)`
+                              : `0 12px 24px -6px ${getThemeColor(500)}20`
+                          }}
+                        >
+                          <Stethoscope className="h-10 w-10" style={{ color: isDark ? '#94a3b8' : getThemeColor(600) }} />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">
+                          Aucune demande trouvée
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-400 text-base">
+                          Vous n'avez pas encore de demande de visite médicale
                         </p>
                       </div>
                     )}
@@ -1082,6 +1225,42 @@ export default function DemandeVisiteMedicale() {
 
 
       </div>
+      {/* Reject dialog */}
+      {isRejectDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-[95%] max-w-md">
+            <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">Refuser la proposition</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Merci d'indiquer la raison de votre refus</p>
+            <Textarea value={rejectReason} onChange={(e)=>setRejectReason(e.target.value)} placeholder="Votre raison..." className="mb-4 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600" />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={()=>{ setIsRejectDialogOpen(false); setRejectReason("") }} className="border-slate-300 dark:border-slate-600">Annuler</Button>
+              <Button
+                disabled={isSubmittingReject || !rejectReason.trim()}
+                className="text-white"
+                style={{background:`linear-gradient(135deg, ${getThemeColor(500)}, ${getThemeColor(700)})`}}
+                onClick={async ()=>{
+                  try {
+                    setIsSubmittingReject(true)
+                    await medicalVisitAPI.rejectProposal(currentRequest!.id, rejectReason)
+                    toast({ title: 'Proposition refusée', description: 'Le service médical sera notifié.' })
+                    setIsRejectDialogOpen(false)
+                    setRejectReason('')
+                    const employeeId = await getEmployeeId()
+                    const resp = await medicalVisitAPI.getEmployeeRequests(employeeId)
+                    if (resp.data.length>0) setCurrentRequest(resp.data[0])
+                  } catch (e:any) {
+                    toast({ title: 'Erreur', description: 'Refus impossible.', variant: 'destructive' })
+                  } finally {
+                    setIsSubmittingReject(false)
+                  }
+                }}
+              >
+                {isSubmittingReject ? 'Envoi...' : 'Envoyer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

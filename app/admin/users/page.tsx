@@ -86,6 +86,7 @@ interface AdminUser {
   address?: string
   department?: string
   position?: string
+  cin?: string
 }
 
 // Role configuration with consistent colors from dashboard
@@ -120,7 +121,8 @@ export default function AdminUsersPage() {
     phoneNumber: "",
     address: "",
     department: "",
-    position: ""
+    position: "",
+    cin: ""
   })
   const [showPassword, setShowPassword] = useState(false)
   const [sortBy, setSortBy] = useState<"name" | "email" | "createdAt" | "lastLogin">("name")
@@ -206,7 +208,8 @@ export default function AdminUsersPage() {
           phoneNumber: newUser.phoneNumber ? [newUser.phoneNumber] : [],
           address: newUser.address ? [newUser.address] : [],
           department: newUser.department ? [newUser.department] : [],
-          position: newUser.position ? [newUser.position] : []
+          position: newUser.position ? [newUser.position] : [],
+          cin: newUser.cin ? [newUser.cin] : []
         }
       }
 
@@ -260,7 +263,8 @@ export default function AdminUsersPage() {
           phoneNumber: "",
           address: "",
           department: "",
-          position: ""
+          position: "",
+          cin: ""
         })
         fetchUsers()
       } else {
@@ -295,7 +299,8 @@ export default function AdminUsersPage() {
           phoneNumber: selectedUser.phoneNumber ? [selectedUser.phoneNumber] : [],
           address: selectedUser.address ? [selectedUser.address] : [],
           department: selectedUser.department ? [selectedUser.department] : [],
-          position: selectedUser.position ? [selectedUser.position] : []
+          position: selectedUser.position ? [selectedUser.position] : [],
+          cin: selectedUser.cin ? [selectedUser.cin] : []
         }
       }
 
@@ -646,6 +651,16 @@ export default function AdminUsersPage() {
                     onChange={(e) => setNewUser({...newUser, phoneNumber: e.target.value})}
                     className="col-span-3 theme-input"
                     placeholder="+33 1 23 45 67 89"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="cin" className="text-right">CIN</Label>
+                  <Input
+                    id="cin"
+                    value={newUser.cin}
+                    onChange={(e) => setNewUser({...newUser, cin: e.target.value})}
+                    className="col-span-3 theme-input"
+                    placeholder="AB123456"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -1091,6 +1106,15 @@ export default function AdminUsersPage() {
                   id="edit-phoneNumber"
                   value={selectedUser.phoneNumber || ""}
                   onChange={(e) => setSelectedUser({...selectedUser, phoneNumber: e.target.value})}
+                  className="col-span-3 theme-input"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-cin" className="text-right">CIN</Label>
+                <Input
+                  id="edit-cin"
+                  value={selectedUser.cin || ""}
+                  onChange={(e) => setSelectedUser({...selectedUser, cin: e.target.value})}
                   className="col-span-3 theme-input"
                 />
               </div>

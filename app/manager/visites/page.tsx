@@ -53,7 +53,7 @@ export default function ManagerVisitesPage() {
   }
   useEffect(() => { load() }, [])
 
-  const filtered = useMemo(() => requests.filter(r => !search || (r.employeeName + ' ' + r.motif).toLowerCase().includes(search.toLowerCase())), [requests, search])
+  const filtered = useMemo(() => requests.filter(r => !search || (r.employeeName || '').toLowerCase().includes(search.toLowerCase())), [requests, search])
 
   const submitProposal = async () => {
     if (!selected || !proposeDate || !proposeTime) return
@@ -87,14 +87,13 @@ export default function ManagerVisitesPage() {
 
         <div className="space-y-3">
           {filtered.map(r => (
-            <Card key={r.id}>
-              <CardContent className="p-4 flex items-center justify-between">
+            <Card key={r.id} className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-sm">
+              <CardContent className="p-4 md:p-5 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold">{r.employeeName} <span className="text-xs ml-2">{r.employeeDepartment}</span></div>
-                  <div className="text-sm text-slate-600">{r.motif}</div>
-                  <div className="text-xs text-slate-500 mt-1">Proposé: {r.proposedDate && r.proposedTime ? `${format(new Date(r.proposedDate), 'dd/MM/yyyy', { locale: fr })} à ${r.proposedTime}` : '-'}</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.employeeName}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Proposé: {r.proposedDate && r.proposedTime ? `${format(new Date(r.proposedDate), 'dd/MM/yyyy', { locale: fr })} à ${r.proposedTime}` : '-'}</div>
                 </div>
-                <Button onClick={() => setSelected(r)} variant="outline">Proposer un autre créneau</Button>
+                <Button onClick={() => setSelected(r)} variant="outline" className="border-slate-300 dark:border-slate-600">Proposer un autre créneau</Button>
               </CardContent>
             </Card>
           ))}

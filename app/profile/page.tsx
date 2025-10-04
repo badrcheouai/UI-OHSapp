@@ -47,6 +47,7 @@ export default function ProfilePage() {
       updatePassword: "Mettre à jour le mot de passe",
       // Profile fields
       dossierNumber: "N° Dossier",
+      cin: "CIN",
       gender: "Sexe",
       birthDate: "Date de naissance",
       address: "Adresse",
@@ -87,6 +88,7 @@ export default function ProfilePage() {
       updatePassword: "Update Password",
       // Profile fields
       dossierNumber: "Dossier Number",
+      cin: "CIN",
       gender: "Gender",
       birthDate: "Birth Date",
       address: "Address",
@@ -661,6 +663,22 @@ export default function ProfilePage() {
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.matriculeNumber}</p>
                     <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">{profileData?.matriculeNumber || t.notProvided}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 border border-slate-200/50 dark:border-slate-600/50">
+                  <div
+                    className="h-8 w-8 rounded-lg flex items-center justify-center shadow-md"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${themeColors.colors.primary[600]}, ${themeColors.colors.primary[800]})`,
+                      border: `2px solid ${themeColors.colors.primary[700]}`
+                    }}
+                  >
+                    <Hash className="h-4 w-4" style={{ color: "white" }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.cin}</p>
+                    <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">{profileData?.cin || t.notProvided}</p>
                   </div>
                 </div>
 
