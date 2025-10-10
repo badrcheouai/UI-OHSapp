@@ -102,7 +102,30 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
-    if (!loading && user) {
+    const recheckAndRedirect = async () => {
+      if (loading || !user) return
+      // Server-side recheck of email verification before redirect
+      try {
+        if (accessToken && user.sub) {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081"
+          const res = await fetch(`${API_URL}/api/v1/admin/keycloak/users/${user.sub}/profile`, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const verified = !!(data?.profile?.emailVerified)
+            if (!verified) {
+              router.replace("/auth/activation")
+              return
+            }
+          }
+        }
+      } catch (_) {
+        // ignore; fallback to token value
+      }
       if (user.emailVerified === false) {
         router.replace("/auth/activation")
         return
@@ -117,7 +140,8 @@ export default function DashboardPage() {
       else if (roles.includes("SALARIE")) router.replace("/dashboard-salarie")
       else router.replace("/profile")
     }
-  }, [user, loading, router])
+    recheckAndRedirect()
+  }, [user, loading, accessToken, router])
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081"
 
