@@ -31,7 +31,7 @@ export function VisitTypeBadge({ type }: { type?: VisitType }) {
       className: "border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-700 dark:text-emerald-200 shadow-emerald-200/50 dark:shadow-emerald-800/30" 
     },
     APPEL_MEDECIN: { 
-      label: "Appel médecin", 
+      label: "À l'appel du médecin", 
       className: "border-purple-500 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/30 dark:to-violet-900/30 text-purple-700 dark:text-purple-200 shadow-purple-200/50 dark:shadow-purple-800/30" 
     },
     SPONTANEE: { 

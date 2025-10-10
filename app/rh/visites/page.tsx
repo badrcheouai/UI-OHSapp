@@ -39,7 +39,19 @@ export default function RhVisitesPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [notes, setNotes] = useState("")
   const [createType, setCreateType] = useState<'EMBAUCHE'|'REPRISE'>('EMBAUCHE')
-  const [repriseCase, setRepriseCase] = useState<"AT_MP"|"ACCIDENT_MALADIE_HORS_AT_MP"|"ABSENCES_REPETEES"|"ACCOUCHEMENT"|"">("")
+  const [repriseCase, setRepriseCase] = useState<
+    | "ACCIDENT_TRAVAIL"
+    | "MALADIE_PROFESSIONNELLE"
+    | "ACCIDENT_HORS_ATMP"
+    | "MALADIE_HORS_ATMP"
+    | "ABSENCES_REPETEES"
+    | "ACCOUCHEMENT"
+    | ""
+  >("")
+  const [dateAccident, setDateAccident] = useState<string>("")
+  const [ittDays, setIttDays] = useState<string>("")
+  const [absenceDuration, setAbsenceDuration] = useState<string>("")
+  const [motifReprise, setMotifReprise] = useState<string>("")
   const [showEmployeeInfo, setShowEmployeeInfo] = useState(false)
   const [selectedEmployeeForInfo, setSelectedEmployeeForInfo] = useState<number | null>(null)
 
@@ -118,18 +130,45 @@ export default function RhVisitesPage() {
 
   const createReprise = async () => {
     if (!employeeId || !repriseCase) { toast({ title: "Champs requis", variant: "destructive" }); return }
+    // Validate dynamic required fields
+    if (repriseCase === 'ACCIDENT_TRAVAIL' || repriseCase === 'MALADIE_PROFESSIONNELLE') {
+      if (!dateAccident || !ittDays) {
+        toast({ title: "Champs requis", description: "Date d'accident et ITT sont requis", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!absenceDuration) {
+        toast({ title: "Champs requis", description: "Durée de l'absence est requise", variant: "destructive" });
+        return;
+      }
+    }
     setIsSubmitting(true)
     try {
       // Create the visit request first
+      const dynamicMotif = (() => {
+        if (repriseCase === 'ACCIDENT_TRAVAIL' || repriseCase === 'MALADIE_PROFESSIONNELLE') {
+          const cinText = selectedEmployee?.cin ? ` | CIN: ${selectedEmployee.cin}` : ''
+          const lib = repriseCase === 'ACCIDENT_TRAVAIL' ? 'Accident du travail' : 'Maladie professionnelle'
+          return `Reprise (${lib}) | Date: ${dateAccident} | ITT: ${ittDays} jours${cinText}`
+        }
+        const label =
+          repriseCase === 'ACCIDENT_HORS_ATMP' ? 'Accident hors AT/MP' :
+          repriseCase === 'MALADIE_HORS_ATMP' ? 'Maladie hors AT/MP' :
+          repriseCase === 'ABSENCES_REPETEES' ? 'Absences répétées' : 'Accouchement'
+        const motifText = motifReprise?.trim() ? ` | Motif: ${motifReprise.trim()}` : ''
+        return `Reprise (${label}) | Durée absence: ${absenceDuration} jours${motifText}`
+      })()
       const visitRequest = await medicalVisitAPI.createRequest({
-        motif: notes || "Visite de reprise",
+        motif: dynamicMotif,
         dateSouhaitee: new Date().toISOString().split('T')[0],
         heureSouhaitee: "09:00",
-        notes: notes || undefined,
+        notes: undefined,
         visitType: 'REPRISE',
         dueDate,
         repriseCategory: repriseCase,
-        repriseDetails: undefined, // Removed repriseDetails
+        repriseDetails: (repriseCase === 'ACCIDENT_TRAVAIL' || repriseCase === 'MALADIE_PROFESSIONNELLE')
+          ? `date=${dateAccident};itt=${ittDays}`
+          : (absenceDuration ? `absence=${absenceDuration}` : undefined),
       }, employeeId)
       
       // Upload certificates if any
@@ -263,6 +302,12 @@ export default function RhVisitesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {(user?.roles?.includes('INFIRMIER_ST') || user?.roles?.includes('MEDECIN_TRAVAIL')) && (createType==='REPRISE' || createType==='EMBAUCHE') && (
+                  <div className="md:col-span-2 -mt-1 mb-2 p-3 rounded-lg border text-xs"
+                       style={{background:'#fff1f2', borderColor:'#fecdd3', color:'#9f1239'}}>
+                    Veuillez à ne pas dépasser la date limite définie ({dueDate ? format(new Date(dueDate), 'dd/MM/yyyy') : '—'}) lors de cette visite.
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-slate-700 dark:text-slate-300 font-medium">Date limite</Label>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -270,7 +315,9 @@ export default function RhVisitesPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full justify-between bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 shadow-sm hover:shadow-md"
+                        className={`w-full justify-between bg-white dark:bg-slate-700 border text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 shadow-sm hover:shadow-md ${
+                          (createType==='REPRISE' || createType==='EMBAUCHE') ? 'border-red-400 text-red-700 dark:text-red-400' : 'border-slate-200 dark:border-slate-600'
+                        }`}
                       >
                         {dueDate ? format(new Date(dueDate), 'dd/MM/yyyy') : 'Sélectionner une date'}
                         <Calendar className="h-4 w-4 opacity-70" />
@@ -311,62 +358,110 @@ export default function RhVisitesPage() {
                 </div>
                 {createType === 'REPRISE' && (
                   <div className="md:col-span-2 space-y-3">
-                    <Label className="text-slate-700 dark:text-slate-300 font-medium">Cas de reprise</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <Button 
-                        variant={repriseCase==='AT_MP'?'default':'outline'} 
-                        onClick={()=>setRepriseCase('AT_MP')}
-                        className={`transition-all duration-300 ${
-                          repriseCase==='AT_MP' 
-                            ? 'text-white shadow-lg' 
-                            : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
-                        }`}
-                        style={repriseCase==='AT_MP' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
-                      >
-                        Absence pour AT/MP
-                      </Button>
-                      <Button 
-                        variant={repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP'?'default':'outline'} 
-                        onClick={()=>setRepriseCase('ACCIDENT_MALADIE_HORS_AT_MP')}
-                        className={`transition-all duration-300 ${
-                          repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP' 
-                            ? 'text-white shadow-lg' 
-                            : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
-                        }`}
-                        style={repriseCase==='ACCIDENT_MALADIE_HORS_AT_MP' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
-                      >
-                        Absence pour accidents/maladie hors AT/MP
-                      </Button>
-                      <Button 
-                        variant={repriseCase==='ABSENCES_REPETEES'?'default':'outline'} 
-                        onClick={()=>setRepriseCase('ABSENCES_REPETEES')}
-                        className={`transition-all duration-300 ${
-                          repriseCase==='ABSENCES_REPETEES' 
-                            ? 'text-white shadow-lg' 
-                            : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
-                        }`}
-                        style={repriseCase==='ABSENCES_REPETEES' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
-                      >
-                        Absence répétées pour raison de santé
-                      </Button>
-                      <Button 
-                        variant={repriseCase==='ACCOUCHEMENT'?'default':'outline'} 
-                        onClick={()=>setRepriseCase('ACCOUCHEMENT')}
-                        className={`transition-all duration-300 ${
-                          repriseCase==='ACCOUCHEMENT' 
-                            ? 'text-white shadow-lg' 
-                            : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
-                        }`}
-                        style={repriseCase==='ACCOUCHEMENT' ? {background:`linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})`} : {}}
-                      >
-                        Absence pour accouchement
-                      </Button>
+                    <Label className="text-slate-700 dark:text-slate-300 font-medium">Absences pour :</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { key: 'ACCIDENT_TRAVAIL', label: 'Accident du travail' },
+                        { key: 'MALADIE_PROFESSIONNELLE', label: 'Maladie professionnelle' },
+                        { key: 'ACCIDENT_HORS_ATMP', label: 'Accident hors AT/MP' },
+                        { key: 'MALADIE_HORS_ATMP', label: 'Maladie hors AT/MP' },
+                        { key: 'ABSENCES_REPETEES', label: 'Absences répétées' },
+                        { key: 'ACCOUCHEMENT', label: 'Accouchement' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setRepriseCase(opt.key as any)}
+                          className={`relative overflow-hidden rounded-xl p-4 text-left transition-all duration-300 border-2 ${
+                            repriseCase === opt.key
+                              ? 'border-transparent text-white shadow-xl scale-[1.02]'
+                              : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:shadow-md'
+                          }`}
+                          style={
+                            repriseCase === opt.key
+                              ? { background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[700]})` }
+                              : { background: `linear-gradient(135deg, ${themeColors.colors.primary[50]}, ${themeColors.colors.primary[100]})` }
+                          }
+                        >
+                          <div className="font-semibold mb-1">{opt.label}</div>
+                          {repriseCase === opt.key && (
+                            <span className="absolute top-2 right-2 text-xs bg-white/20 rounded px-2 py-0.5">Choisi</span>
+                          )}
+                        </button>
+                      ))}
                     </div>
+                    {/* Dynamic fields by case */}
+                    {repriseCase === 'ACCIDENT_TRAVAIL' || repriseCase === 'MALADIE_PROFESSIONNELLE' ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300 font-medium">Date *</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={`w-full justify-start text-left font-normal bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-600 focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-500 ${!dateAccident ? 'text-slate-500 dark:text-slate-400' : ''}`}
+                              >
+                                <Calendar className="h-4 w-4 mr-2 opacity-70" />
+                                {dateAccident ? format(new Date(dateAccident), 'PPP', { locale: fr }) : 'Sélectionner une date'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-lg rounded-lg z-[99999] calendar-popover" align="start">
+                              <EnhancedCalendar
+                                selectedDate={dateAccident ? new Date(dateAccident) : null}
+                                onDateSelect={(d)=> setDateAccident(format(d, 'yyyy-MM-dd'))}
+                                minDate={new Date(2000,0,1)}
+                                maxDate={new Date()}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300 font-medium">
+                            CIN{selectedEmployee ? ` — ${selectedEmployee.firstName} ${selectedEmployee.lastName}` : ''}
+                          </Label>
+                          <Input 
+                            value={selectedEmployee?.cin || ''}
+                            readOnly
+                            title={selectedEmployee?.cin ? `CIN de ${selectedEmployee.firstName} ${selectedEmployee.lastName}` : 'Sélectionnez un salarié'}
+                            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-semibold cursor-default focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300 font-medium">ITT (jours) *</Label>
+                          <Input type="number" min={1} value={ittDays} onChange={(e)=>setIttDays(e.target.value)} className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500" />
+                        </div>
+                      </div>
+                    ) : repriseCase ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300 font-medium">Durée de l'absence (jours) *</Label>
+                          <Input 
+                            type="number" 
+                            min={1} 
+                            value={absenceDuration} 
+                            onChange={(e)=>setAbsenceDuration(e.target.value)} 
+                            className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+                            placeholder="Ex: 10"
+                          />
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300 font-medium">Motif</Label>
+                          <Textarea 
+                            value={motifReprise} 
+                            onChange={(e)=>setMotifReprise(e.target.value)} 
+                            rows={3} 
+                            className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500" 
+                            placeholder="Saisissez le motif..." 
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
                 
-                {/* Certificate Upload Section for REPRISE */}
-                {createType === 'REPRISE' && (
+                {/* Certificate Upload Section for REPRISE - show only after a non AT/MP case is selected */}
+                {createType === 'REPRISE' && repriseCase && repriseCase !== 'ACCIDENT_TRAVAIL' && repriseCase !== 'MALADIE_PROFESSIONNELLE' && (
                   <div className="md:col-span-2 space-y-4">
                     <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
                       <div className="text-center space-y-4">
@@ -464,16 +559,7 @@ export default function RhVisitesPage() {
                   </div>
                 )}
                 
-                <div className="md:col-span-2 space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 font-medium">Détails supplémentaires (optionnel)</Label>
-                  <Textarea 
-                    value={notes} 
-                    onChange={(e)=>setNotes(e.target.value)} 
-                    placeholder="Décrivez les détails de la demande..." 
-                    className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md resize-none" 
-                    rows={4}
-                  />
-                </div>
+                {/* Removed generic details field per new rules */}
                 <div className="md:col-span-2 flex justify-center pt-4">
                   <Button
                     disabled={!employeeId || isSubmitting || isUploadingCertificate || (createType==='REPRISE' && !repriseCase)}
@@ -549,7 +635,7 @@ export default function RhVisitesPage() {
                       <SelectItem value="REPRISE">Reprise</SelectItem>
                       <SelectItem value="PERIODIQUE">Périodique</SelectItem>
                       <SelectItem value="SURVEILLANCE_PARTICULIERE">Surveillance</SelectItem>
-                      <SelectItem value="APPEL_MEDECIN">Appel médecin</SelectItem>
+                      <SelectItem value="APPEL_MEDECIN">À l'appel du médecin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -677,7 +763,7 @@ export default function RhVisitesPage() {
 
       {/* REPRISE Info Box Dialog */}
       <Dialog open={repriseInfoDialogOpen} onOpenChange={setRepriseInfoDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
+        <DialogContent className="w-[95vw] sm:max-w-[900px] max-h-[85vh] overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
               Détails de la visite de reprise

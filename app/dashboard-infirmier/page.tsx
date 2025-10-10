@@ -344,7 +344,7 @@ export default function DashboardInfirmier() {
                   <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                      <span className="font-medium text-slate-700 dark:text-slate-300">Appel médecin</span>
+                                              <span className="font-medium text-slate-700 dark:text-slate-300">À l'appel du médecin</span>
               </div>
                     <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
                       {filteredRequests.filter(r => r.visitType === 'APPEL_MEDECIN').length}

@@ -69,6 +69,7 @@ interface Employee {
   firstName: string
   lastName: string
   email: string
+  cin?: string
   phoneNumber?: string
   department?: string
   position?: string
@@ -104,6 +105,7 @@ export default function RHEmployeesPage() {
     firstName: "",
     lastName: "",
     email: "",
+    cin: "",
     phoneNumber: "",
     department: "",
     position: "",
@@ -209,7 +211,7 @@ export default function RHEmployeesPage() {
         toast.success("Employé créé avec succès")
         setShowCreateDialog(false)
         setNewEmployee({
-          firstName: "", lastName: "", email: "", phoneNumber: "",
+          firstName: "", lastName: "", email: "", cin: "", phoneNumber: "",
           department: "", position: "", hireDate: "", matriculeNumber: "",
           gender: "", birthDate: "", address: "", company: ""
         })
@@ -318,6 +320,7 @@ export default function RHEmployeesPage() {
           firstName: (emp.firstName ?? '').toString().trim(),
           lastName: (emp.lastName ?? '').toString().trim(),
           email: (emp.email ?? '').toString().trim(),
+          cin: (emp.cin ?? emp.CIN ?? '').toString().trim() || undefined,
           phoneNumber: (emp.phoneNumber ?? '').toString().trim() || undefined,
           department: (emp.department ?? '').toString().trim() || undefined,
           position: (emp.position ?? '').toString().trim() || undefined,
@@ -366,13 +369,14 @@ export default function RHEmployeesPage() {
     try {
       const XLSX: any = await import('xlsx-js-style')
       const headers = [
-        'Prénom', 'Nom', 'Email', 'Téléphone', 'Département', 'Poste',
+        'Prénom', 'Nom', 'Email', 'CIN', 'Téléphone', 'Département', 'Poste',
         'Date d\'embauche', 'Genre', 'Date de naissance', 'Adresse', 'Entreprise', 'Numéro matricule'
       ]
       const sample = [{
         'Prénom': 'Jean',
         'Nom': 'Dupont',
         'Email': 'jean.dupont@company.com',
+        'CIN': 'AB123456',
         'Téléphone': '+33 1 23 45 67 89',
         'Département': 'IT',
         'Poste': 'Développeur',
@@ -432,6 +436,7 @@ export default function RHEmployeesPage() {
             'Prénom': 'firstName',
             'Nom': 'lastName',
             'Email': 'email',
+            'CIN': 'cin',
             'Téléphone': 'phoneNumber',
             'Département': 'department',
             'Poste': 'position',
@@ -623,17 +628,18 @@ export default function RHEmployeesPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-                                                  <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Nom</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Email</TableHead>
-                                                  <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
-                                                    <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Nom</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Email</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">CIN</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Téléphone</TableHead>
+                          <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4">Poste</TableHead>
                           <TableHead className="text-slate-700 dark:text-slate-300 font-medium py-4 text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredEmployees.map((employee, index) => (
                           <TableRow 
-                        key={employee.id}
+                            key={employee.id}
                             className={`border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200 ${
                               index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50/50 dark:bg-slate-800/30'
                             }`}
@@ -643,20 +649,23 @@ export default function RHEmployeesPage() {
                                 <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold text-white" 
                                      style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[500]}, ${themeColors.colors.primary[600]})`}}>
                                   {employee.firstName.charAt(0)}{employee.lastName.charAt(0)}
-                          </div>
+                                </div>
                                 <span className="font-semibold text-slate-900 dark:text-white">
-                              {employee.firstName} {employee.lastName}
+                                  {employee.firstName} {employee.lastName}
                                 </span>
-                            </div>
+                              </div>
                             </TableCell>
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-6 w-6 rounded-lg flex items-center justify-center" 
                                      style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[500]})`}}>
                                   <Mail className="h-3 w-3 text-white" />
-                          </div>
+                                </div>
                                 <span className="text-slate-700 dark:text-slate-300 font-medium">{employee.email}</span>
-                        </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="text-slate-700 dark:text-slate-300 font-medium">{employee.cin || '-'}</span>
                             </TableCell>
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
@@ -704,7 +713,7 @@ export default function RHEmployeesPage() {
                               </div>
                             </TableCell>
                           </TableRow>
-                    ))}
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -732,68 +741,82 @@ export default function RHEmployeesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="firstName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Prénom *</Label>
-          <Input
-            id="firstName"
+                  <Input
+                    id="firstName"
                     value={newEmployee.firstName}
                     onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Prénom de l'employé"
-          />
-        </div>
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label htmlFor="lastName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Nom *</Label>
-          <Input
-            id="lastName"
+                  <Input
+                    id="lastName"
                     value={newEmployee.lastName}
                     onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Nom de l'employé"
-          />
-        </div>
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label htmlFor="cin" className="text-slate-700 dark:text-slate-300 font-medium text-sm">CIN</Label>
+                  <Input
+                    id="cin"
+                    value={newEmployee.cin}
+                    onChange={(e) => setNewEmployee({...newEmployee, cin: e.target.value})}
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    placeholder="Ex: AB123456"
+                  />
+                </div>
+                <div className="space-y-3">
+                </div>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Email *</Label>
-          <Input
-            id="email"
-            type="email"
+                <Input
+                  id="email"
+                  type="email"
                   value={newEmployee.email}
                   onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="email@exemple.com"
-          />
-        </div>
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="phoneNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Téléphone</Label>
-          <Input
-            id="phoneNumber"
+                  <Input
+                    id="phoneNumber"
                     value={newEmployee.phoneNumber}
                     onChange={(e) => setNewEmployee({...newEmployee, phoneNumber: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="+212 6 12 34 56 78"
-          />
-        </div>
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label htmlFor="department" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Département</Label>
-          <Input
-            id="department"
+                  <Input
+                    id="department"
                     value={newEmployee.department}
                     onChange={(e) => setNewEmployee({...newEmployee, department: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: RH, IT, Marketing"
-          />
-        </div>
+                  />
+                </div>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="position" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Poste</Label>
-          <Input
-            id="position"
+                <Input
+                  id="position"
                   value={newEmployee.position}
                   onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: Développeur, Manager, Analyste"
-          />
-        </div>
+                />
+              </div>
               
               {/* Additional Personal Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -811,31 +834,31 @@ export default function RHEmployeesPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="birthDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date de naissance *</Label>
-          <Input
+                  <Input
                     id="birthDate"
-            type="date"
+                    type="date"
                     value={newEmployee.birthDate}
                     onChange={(e) => setNewEmployee({...newEmployee, birthDate: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-          />
-        </div>
+                  />
+                </div>
               </div>
               
               <div className="space-y-3">
                 <Label htmlFor="address" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Adresse *</Label>
-          <Input
+                <Input
                   id="address"
                   value={newEmployee.address}
                   onChange={(e) => setNewEmployee({...newEmployee, address: e.target.value})}
                   className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: 123 Rue de la Paix, Paris"
-          />
-        </div>
+                />
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <Label htmlFor="company" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Entreprise *</Label>
-          <Input
+                  <Input
                     id="company"
                     value={newEmployee.company}
                     onChange={(e) => setNewEmployee({...newEmployee, company: e.target.value})}
@@ -847,24 +870,24 @@ export default function RHEmployeesPage() {
                   <Label htmlFor="hireDate" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Date d'embauche *</Label>
                   <Input
                     id="hireDate"
-            type="date"
+                    type="date"
                     value={newEmployee.hireDate}
                     onChange={(e) => setNewEmployee({...newEmployee, hireDate: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
-          />
-        </div>
+                  />
+                </div>
               </div>
               
               <div className="space-y-3">
                 <Label htmlFor="matriculeNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Numéro matricule</Label>
-          <Input
+                <Input
                   id="matriculeNumber"
                   value={newEmployee.matriculeNumber}
                   onChange={(e) => setNewEmployee({...newEmployee, matriculeNumber: e.target.value})}
-                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                   placeholder="Ex: MAT-1234567890"
-          />
-        </div>
+                />
+              </div>
             </div>
             <DialogFooter className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/60 dark:border-slate-700/60 pt-6">
               <Button 
@@ -907,7 +930,7 @@ export default function RHEmployeesPage() {
               {/* Template Download */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800 shadow-lg">
                 <div className="flex items-center justify-between">
-        <div>
+                  <div>
                     <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-lg">Télécharger le modèle</h3>
                     <p className="text-sm text-blue-700 dark:text-blue-300">Obtenez un modèle Excel avec les colonnes requises</p>
                   </div>
@@ -931,7 +954,7 @@ export default function RHEmployeesPage() {
                   onChange={(e) => handleExcelFileChange(e.target.files?.[0] || null)}
                   className="block w-full text-sm text-slate-700 dark:text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
                 />
-                <p className="text-xs text-slate-500 dark:text-slate-400">Colonnes: Prénom, Nom, Email, Téléphone, Département, Poste, Date d'embauche, Genre, Date de naissance, Adresse, Entreprise, Numéro matricule</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Colonnes: Prénom, Nom, Email, CIN, Téléphone, Département, Poste, Date d'embauche, Genre, Date de naissance, Adresse, Entreprise, Numéro matricule</p>
                 {excelFileName && (
                   <p className="text-xs text-slate-600 dark:text-slate-300">Fichier sélectionné: {excelFileName} • {excelEmployees.length} lignes détectées</p>
                 )}
@@ -956,7 +979,7 @@ export default function RHEmployeesPage() {
                               {emp.firstName || 'N/A'} {emp.lastName || 'N/A'}
                             </p>
                             <p className="text-sm text-slate-600 dark:text-slate-400">
-                              {emp.email || 'Email manquant'} • {emp.department || 'Département manquant'}
+                              {emp.email || 'Email manquant'} • {emp.cin || 'CIN manquant'}
                             </p>
                           </div>
                         </div>
@@ -1058,47 +1081,47 @@ export default function RHEmployeesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="editFirstName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Prénom *</Label>
-          <Input
+                    <Input
                       id="editFirstName"
                       value={selectedEmployee.firstName}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, firstName: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="Prénom de l'employé"
-          />
-        </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="editLastName" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Nom *</Label>
-          <Input
+                    <Input
                       id="editLastName"
                       value={selectedEmployee.lastName}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, lastName: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="Nom de l'employé"
-          />
-        </div>
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="editEmail" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Email *</Label>
-          <Input
+                  <Input
                     id="editEmail"
                     type="email"
                     value={selectedEmployee.email}
                     onChange={(e) => setSelectedEmployee({...selectedEmployee, email: e.target.value})}
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="email@exemple.com"
-          />
-        </div>
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="editPhoneNumber" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Téléphone</Label>
-          <Input
+                    <Input
                       id="editPhoneNumber"
                       value={selectedEmployee.phoneNumber}
                       onChange={(e) => setSelectedEmployee({...selectedEmployee, phoneNumber: e.target.value})}
                       className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                       placeholder="+212 6 12 34 56 78"
-          />
-        </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="editDepartment" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Département</Label>
                     <Input
@@ -1111,6 +1134,16 @@ export default function RHEmployeesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="editCin" className="text-slate-700 dark:text-slate-300 font-medium text-sm">CIN</Label>
+                  <Input
+                    id="editCin"
+                    value={selectedEmployee.cin || ''}
+                    onChange={(e) => setSelectedEmployee({...selectedEmployee, cin: e.target.value})}
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    placeholder="Ex: AB123456"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="editPosition" className="text-slate-700 dark:text-slate-300 font-medium text-sm">Poste</Label>
                   <Input
                     id="editPosition"
@@ -1119,7 +1152,7 @@ export default function RHEmployeesPage() {
                     className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: Développeur, Manager, Analyste"
                   />
-      </div>
+                </div>
 
                 {/* Additional Personal Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1187,7 +1220,7 @@ export default function RHEmployeesPage() {
                     id="editMatriculeNumber"
                     value={selectedEmployee.matriculeNumber}
                     onChange={(e) => setSelectedEmployee({...selectedEmployee, matriculeNumber: e.target.value})}
-                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-all duration-300 shadow-sm hover:shadow-md"
                     placeholder="Ex: MAT-1234567890"
                   />
                 </div>
@@ -1239,8 +1272,8 @@ export default function RHEmployeesPage() {
                 onClick={() => setShowEditDialog(false)}
                 className="border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-300"
               >
-          Annuler
-        </Button>
+                Annuler
+              </Button>
               <Button 
                 onClick={updateEmployee}
                 style={{
@@ -1250,7 +1283,7 @@ export default function RHEmployeesPage() {
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Mettre à jour
-        </Button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

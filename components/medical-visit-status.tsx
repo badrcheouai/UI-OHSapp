@@ -64,11 +64,19 @@ interface MedicalVisitStatusProps {
 
 // Helper function to convert API data to component format
 const convertAPIRequestToComponentFormat = (apiRequest: APIMedicalVisitRequest): MedicalVisitRequest => {
+  // For pending status (when RH is creating the request), don't show detailed reprise/embauche info
+  // Only show detailed info when it's already proposed by medical staff
+  let displayReason = apiRequest.motif;
+  if (apiRequest.status === 'PENDING' && (apiRequest.visitType === 'REPRISE' || apiRequest.visitType === 'EMBAUCHE')) {
+    // For pending reprise/embauche requests, show generic labels
+    displayReason = apiRequest.visitType === 'REPRISE' ? 'Reprise' : 'Embauche';
+  }
+
   return {
     id: apiRequest.id.toString(),
     status: apiRequest.status.toLowerCase() as "pending" | "proposed" | "confirmed" | "rejected" | "cancelled",
     employeeName: apiRequest.employeeName,
-    reason: apiRequest.motif,
+    reason: displayReason,
     dateSouhaitee: new Date(apiRequest.dateSouhaitee),
     proposedDate: apiRequest.proposedDate ? new Date(apiRequest.proposedDate) : undefined,
     proposedTime: apiRequest.proposedTime,
@@ -218,7 +226,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   ANNULÉ
                 </>
               ) : (
-                componentRequest.status.toUpperCase()
+                (componentRequest.status as string).toUpperCase()
               )}
             </Badge>
           </div>
@@ -250,7 +258,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   <Building className="h-4 w-4 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Département</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Poste</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{componentRequest.department}</p>
                 </div>
               </div>
@@ -261,7 +269,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Raison</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Type de visite</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{componentRequest.reason}</p>
                 </div>
               </div>
@@ -410,25 +418,6 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
 
       {/* Action Buttons */}
       <div className="flex gap-2 mt-4">
-        {/* Reset Button for Development Testing */}
-        {process.env.NODE_ENV === 'development' && (
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (confirm("Êtes-vous sûr de vouloir supprimer TOUTES vos demandes de visite médicale ? (Mode développement)")) {
-                // Call the reset callback if provided
-                if (onResetRequest) {
-                  await onResetRequest()
-                }
-              }
-            }}
-            className="px-5 py-2.5 border-2 border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
-          >
-            <Clock className="h-5 w-5 mr-2" />
-            <span>Reset (Dev)</span>
-          </Button>
-        )}
-
         {/* Action Buttons for Proposed Status - Employees can only Accept/Reject */}
         {componentRequest.status === "proposed" && (
           <>
@@ -469,12 +458,54 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
           </>
         )}
 
+        {/* Information for Rejected Status */}
+        {componentRequest.status === "rejected" && (
+          <div className="flex gap-2 mt-4 w-full">
+            {/* Reset Button for Development Testing */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (confirm("Êtes-vous sûr de vouloir supprimer TOUTES vos demandes de visite médicale ? (Mode développement)")) {
+                    // Call the reset callback if provided
+                    if (onResetRequest) {
+                      await onResetRequest()
+                    }
+                  }
+                }}
+                className="px-5 py-2.5 border-2 border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex-shrink-0"
+              >
+                <Clock className="h-5 w-4 w-5 mr-2" />
+                <span>Reset (Dev)</span>
+              </Button>
+            )}
+
+            {/* Rejected Status Message */}
+            <div className="flex-1 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-6 w-6 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                    Proposition refusée
+                  </h4>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    Vu que vous avez refusé, la prochaine proposition sera automatiquement confirmée. Veuillez veiller à ce que vous vous mettiez d'accord directement.
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    Contact: +212 6 41 79 85 43
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       {/* Reject Proposal Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
           <DialogHeader>
-            <DialogTitle>Refuser la proposition</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-slate-900 dark:text-slate-100">Refuser la proposition</DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
               Veuillez indiquer la raison du refus (optionnel).
             </DialogDescription>
           </DialogHeader>
@@ -482,9 +513,17 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
             placeholder="Ex: Le créneau ne me convient pas"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
+            className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 shadow-sm resize-none"
+            rows={4}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>Annuler</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsRejectDialogOpen(false)}
+              className="border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Annuler
+            </Button>
             <Button
               disabled={isSubmittingReject}
               onClick={async () => {
@@ -493,7 +532,7 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   await medicalVisitAPI.rejectProposal(parseInt(componentRequest.id), rejectReason || "Refusé par l'employé")
                   toast({
                     title: "Proposition refusée",
-                    description: "Votre refus a été transmis au service médical.",
+                    description: "Votre refus a été transmis au service médical. Veuillez contacter le service médical pour vous mettre d'accord.",
                   })
                   setIsRejectDialogOpen(false)
                   window.location.reload()
@@ -504,6 +543,8 @@ export function MedicalVisitStatus({ request, onProposeNewSlot, onCancelRequest,
                   setIsSubmittingReject(false)
                 }
               }}
+              className="text-white"
+              style={{background: `linear-gradient(135deg, #ef4444, #dc2626)`}}
             >
               Confirmer le refus
             </Button>

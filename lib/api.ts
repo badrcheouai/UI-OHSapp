@@ -13,8 +13,12 @@ api.interceptors.request.use(cfg => {
     // Get token from localStorage (same as AuthContext)
     const stored = localStorage.getItem("oshapp_tokens");
     console.log('🔍 API Interceptor - stored tokens:', stored ? 'found' : 'not found');
-    
-    if (stored) {
+
+    // Skip Authorization header for public endpoints
+    const path = cfg.url || '';
+    const isPublic = path.startsWith('/api/notifications') || path.startsWith('/api/v1/pharmacy') || path.startsWith('/api/v1/pharmacy-orders');
+
+    if (!isPublic && stored) {
         try {
             const parsed = JSON.parse(stored);
             console.log('🔍 API Interceptor - parsed tokens:', parsed);
@@ -123,6 +127,8 @@ export interface MedicalVisitRequest {
   assignedDoctorId?: number;
   assignedDoctorName?: string;
   previousProposals?: MedicalVisitProposal[];
+  rejectionReason?: string;
+  rejectedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +150,7 @@ export interface CreateMedicalVisitRequestData {
   notes?: string;
   visitType?: 'EMBAUCHE' | 'PERIODIQUE' | 'SURVEILLANCE_PARTICULIERE' | 'REPRISE' | 'APPEL_MEDECIN' | 'SPONTANEE';
   dueDate?: string;
+  modality?: 'PRESENTIEL' | 'DISTANCE';
   repriseCategory?: 'AT_MP' | 'ACCIDENT_MALADIE_HORS_AT_MP' | 'ABSENCES_REPETEES' | 'ACCOUCHEMENT';
   repriseDetails?: string;
 }
@@ -197,9 +204,13 @@ export const medicalVisitAPI = {
   getRequestsByStatus: (status: string) => 
     api.get<MedicalVisitRequest[]>(`/api/v1/medical-visits/status/${status}`),
 
-  // Propose a new slot for a request
+  // Propose a new slot for an existing request
   proposeSlot: (requestId: number, data: ProposeSlotData) => 
-    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/propose`, data),
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/propose?proposer=${data.proposedBy}`, data),
+
+  // Propose a new slot after rejection and auto-confirm it
+  proposeSlotAfterRejection: (requestId: number, data: ProposeSlotData) => 
+    api.post<MedicalVisitRequest>(`/api/v1/medical-visits/${requestId}/propose-after-rejection?proposer=${data.proposedBy}`, data),
 
   // Confirm a request
   confirmRequest: (requestId: number, data: ConfirmRequestData) => 
@@ -240,3 +251,172 @@ export const adminAPI = {
   updateEmployee: (id: number, payload: Record<string, any>) => api.put(`/api/v1/admin/employees/${id}`, payload),
   deleteEmployee: (id: number) => api.delete(`/api/v1/admin/employees/${id}`),
 };
+
+// Pharmacy types & API
+export type MedicationForm = 'INJECTABLE' | 'COMPRIME' | 'SUPPOSITOIRE' | 'TOPIQUE' | 'GOUTTE' | 'SPRAY'
+
+export interface PharmacyItem {
+  id: number
+  category: 'MEDICAMENT' | 'PARAPHARMACEUTIQUE' | 'MATERIEL_SST'
+  name: string
+  quantity: number
+  form?: MedicationForm
+  expirationDate?: string
+  purchaseDate?: string
+  prescriptionDate?: string
+  dispenseByUnit?: boolean
+  unitsPerPackage?: number
+  unitsRemaining?: number
+  repairDate?: string
+  calibrationDate?: string
+}
+
+export const pharmacyAPI = {
+  getAll: () => api.get<PharmacyItem[]>(`/api/v1/pharmacy`),
+  getByCategory: (category: PharmacyItem['category']) => api.get<PharmacyItem[]>(`/api/v1/pharmacy/category/${category}`),
+  search: (q: string) => api.get<PharmacyItem[]>(`/api/v1/pharmacy/search`, { params: { q } }),
+  create: (payload: Omit<PharmacyItem, 'id'>) => api.post<PharmacyItem>(`/api/v1/pharmacy`, payload),
+  update: (id: number, payload: Partial<Omit<PharmacyItem, 'id'>>) => 
+    api.put<PharmacyItem>(`/api/v1/pharmacy/${id}`, payload, { headers: { 'Content-Type': 'application/json' } }),
+  delete: (id: number) => api.delete<void>(`/api/v1/pharmacy/${id}`),
+}
+
+// Pharmacy Order Management Types
+export interface PharmacyNeed {
+  id: number
+  title: string
+  notes: string
+  status: string
+  createdByEmail: string
+  createdAt: string
+  items: PharmacyNeedItem[]
+  invoiceFilePath?: string
+  invoiceTotalAmount?: number
+}
+
+export interface PharmacyNeedItem {
+  id: number
+  product: string
+  quantity: number
+  notes: string
+}
+
+export interface CreatePharmacyNeed {
+  title: string
+  notes: string
+  items: CreatePharmacyNeedItem[]
+}
+
+export interface CreatePharmacyNeedItem {
+  product: string
+  quantity: number
+  notes: string
+}
+
+export interface PharmacyQuote {
+  id: number
+  supplier: string
+  quoteNumber: string
+  totalAmount: number
+  notes: string
+  status: string
+  filePath?: string
+  relatedNeedId?: number
+  createdByEmail: string
+  createdAt: string
+  items: PharmacyQuoteItem[]
+}
+
+export interface PharmacyQuoteItem {
+  id: number
+  product: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  notes: string
+}
+
+export interface PharmacyOrder {
+  id: number
+  orderNumber: string
+  supplier: string
+  totalAmount: number
+  notes: string
+  status: string
+  filePath?: string
+  relatedQuoteId?: number
+  relatedNeedId?: number
+  createdByEmail: string
+  createdAt: string
+  items: PharmacyOrderItem[]
+}
+
+export interface PharmacyOrderItem {
+  id: number
+  product: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  notes: string
+}
+
+export interface PharmacyDelivery {
+  id: number
+  deliveryNumber: string
+  supplier: string
+  notes: string
+  status: string
+  filePath?: string
+  relatedOrderId?: number
+  createdByEmail: string
+  createdAt: string
+  items: PharmacyDeliveryItem[]
+}
+
+export interface PharmacyDeliveryItem {
+  id: number
+  product: string
+  quantity: number
+  conform: boolean
+  notes: string
+}
+
+// Pharmacy Order Management API
+export const pharmacyOrderAPI = {
+  // Needs
+  getNeeds: (page = 0, size = 10) => api.get<{ content: PharmacyNeed[], totalElements: number }>(`/api/v1/pharmacy-orders/needs?page=${page}&size=${size}`),
+  getAllNeeds: () => api.get<PharmacyNeed[]>('/api/v1/pharmacy-orders/needs/all'),
+  getNeedById: (id: number) => api.get<PharmacyNeed>(`/api/v1/pharmacy-orders/needs/${id}`),
+  createNeed: (data: CreatePharmacyNeed) => api.post<PharmacyNeed>('/api/v1/pharmacy-orders/needs', data),
+  updateNeedStatus: (id: number, status: string) => api.put<PharmacyNeed>(`/api/v1/pharmacy-orders/needs/${id}/status?status=${status}`),
+  uploadNeedInvoice: (id: number, file: File, totalAmount: number) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('totalAmount', String(totalAmount))
+    return api.post<PharmacyNeed>(`/api/v1/pharmacy-orders/needs/${id}/invoice`, form)
+  },
+  downloadNeedInvoice: (id: number) => api.get(`/api/v1/pharmacy-orders/needs/${id}/invoice`, { responseType: 'blob' }),
+  deleteNeed: (id: number) => api.delete(`/api/v1/pharmacy-orders/needs/${id}`),
+
+  // Quotes
+  getQuotes: (page = 0, size = 10) => api.get<{ content: PharmacyQuote[], totalElements: number }>(`/api/v1/pharmacy-orders/quotes?page=${page}&size=${size}`),
+  getQuotesByNeed: (needId: number) => api.get<PharmacyQuote[]>(`/api/v1/pharmacy-orders/quotes/need/${needId}`),
+  getQuoteById: (id: number) => api.get<PharmacyQuote>(`/api/v1/pharmacy-orders/quotes/${id}`),
+  createQuote: (data: Partial<PharmacyQuote>) => api.post<PharmacyQuote>('/api/v1/pharmacy-orders/quotes', data),
+  updateQuoteStatus: (id: number, status: string) => api.put<PharmacyQuote>(`/api/v1/pharmacy-orders/quotes/${id}/status?status=${status}`),
+
+  // Orders
+  getOrders: (page = 0, size = 10) => api.get<{ content: PharmacyOrder[], totalElements: number }>(`/api/v1/pharmacy-orders/orders?page=${page}&size=${size}`),
+  getOrdersByQuote: (quoteId: number) => api.get<PharmacyOrder[]>(`/api/v1/pharmacy-orders/orders/quote/${quoteId}`),
+  getOrderById: (id: number) => api.get<PharmacyOrder>(`/api/v1/pharmacy-orders/orders/${id}`),
+  createOrder: (data: Partial<PharmacyOrder>) => api.post<PharmacyOrder>('/api/v1/pharmacy-orders/orders', data),
+  updateOrderStatus: (id: number, status: string) => api.put<PharmacyOrder>(`/api/v1/pharmacy-orders/orders/${id}/status?status=${status}`),
+
+  // Deliveries
+  getDeliveries: (page = 0, size = 10) => api.get<{ content: PharmacyDelivery[], totalElements: number }>(`/api/v1/pharmacy-orders/deliveries?page=${page}&size=${size}`),
+  getDeliveriesByOrder: (orderId: number) => api.get<PharmacyDelivery[]>(`/api/v1/pharmacy-orders/deliveries/order/${orderId}`),
+  getDeliveryById: (id: number) => api.get<PharmacyDelivery>(`/api/v1/pharmacy-orders/deliveries/${id}`),
+  createDelivery: (data: Partial<PharmacyDelivery>) => api.post<PharmacyDelivery>('/api/v1/pharmacy-orders/deliveries', data),
+  updateDeliveryStatus: (id: number, status: string) => api.put<PharmacyDelivery>(`/api/v1/pharmacy-orders/deliveries/${id}/status?status=${status}`),
+  updateStockFromDelivery: (id: number) => api.post(`/api/v1/pharmacy-orders/deliveries/${id}/update-stock`)
+}

@@ -51,7 +51,6 @@ export default function ActivationPage() {
   };
   const t = text[language];
 
-  // Placeholder: Replace with actual API call
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -92,23 +91,10 @@ export default function ActivationPage() {
     }
   };
 
-  // Placeholder: Replace with actual resend logic
   const handleResend = async () => {
     setIsResending(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
-      const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      };
-      const body = JSON.stringify({ email: user?.email });
-      // Debug logs
-      console.log('Resend Activation Debug:');
-      console.log('accessToken:', accessToken);
-      console.log('user:', user);
-      console.log('headers:', headers);
-      console.log('body:', body);
-      // --- Resend Activation Code API Call ---
       if (!user || !user.email) {
         throw new Error("User or user email is missing");
       }
@@ -118,11 +104,6 @@ export default function ActivationPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       };
-      console.log("Resend Activation Debug:");
-      console.log("accessToken:", accessToken);
-      console.log("user:", user);
-      console.log("headers:", resendHeaders);
-      console.log("body:", resendBody);
       const response = await fetch(resendUrl, {
         method: "POST",
         headers: resendHeaders,
@@ -148,37 +129,13 @@ export default function ActivationPage() {
   React.useEffect(() => {
     const urlCode = searchParams.get('code');
     if (urlCode) setCode(urlCode);
-    // Optionally, auto-submit if both code and user.email are present
     const urlEmail = searchParams.get('email');
     if (urlCode && urlEmail && user && user.email === urlEmail) {
-      // Only auto-submit if not already activated
       if (!success && !loading) {
         handleActivate({ preventDefault: () => {} } as React.FormEvent);
       }
     }
   }, [searchParams, user]);
-
-  // Role-based dashboard path
-  const getDashboardPath = () => {
-    if (!user) return "/";
-    if (user.roles.includes("ADMIN")) return "/dashboard";
-    if (user.roles.includes("RESP_RH")) return "/dashboard-rh";
-    if (user.roles.includes("INFIRMIER_ST")) return "/dashboard-infirmier";
-    if (user.roles.includes("MEDECIN_TRAVAIL")) return "/dashboard-medecin";
-    if (user.roles.includes("RESP_HSE")) return "/dashboard-hse";
-    if (user.roles.includes("SALARIE")) return "/dashboard-salarie";
-    return "/";
-  };
-
-  const [redirectCountdown, setRedirectCountdown] = useState(2);
-  React.useEffect(() => {
-    if (success && redirectCountdown > 0) {
-      const timer = setTimeout(() => setRedirectCountdown(redirectCountdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (success && redirectCountdown === 0) {
-      router.push(getDashboardPath());
-    }
-  }, [success, redirectCountdown]);
 
   return (
     <div
@@ -189,7 +146,6 @@ export default function ActivationPage() {
                      #ffffff`,
       }}
     >
-      {/* Top-right controls (theme + logout), consistent with other pages */}
       <div className="absolute top-6 right-8 flex items-center gap-2 z-10">
         <button
           onClick={() => setLanguage(language === 'en' ? 'fr' : 'en')}
@@ -212,7 +168,6 @@ export default function ActivationPage() {
         </Button>
       </div>
       <div className="w-full max-w-md relative z-10">
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <Link href="/login" className="flex items-center gap-3">
             <div
@@ -226,7 +181,6 @@ export default function ActivationPage() {
             <span className="text-xl font-bold text-foreground">OSHapp</span>
           </Link>
         </div>
-        {/* Main Card */}
         <Card className="theme-card shadow-xl">
           <CardHeader className="text-center pb-6">
             <div
@@ -276,7 +230,7 @@ export default function ActivationPage() {
                   {t.success}
                   <div className="mt-2 flex items-center gap-2 animate-pulse">
                     <span>{language === 'fr' ? 'Redirection dans' : 'Redirecting in'}</span>
-                    <span className="font-bold text-lg">{redirectCountdown}</span>
+                    <span className="font-bold text-lg">2</span>
                     <svg className="w-5 h-5 text-emerald-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
                     <span>{language === 'fr' ? 'secondes...' : 'seconds...'}</span>
                   </div>

@@ -978,18 +978,20 @@ export default function DemandeVisiteMedicale() {
                           </CardHeader>
                           <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div 
-                                className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
-                                style={{
-                                  background: isDark 
-                                    ? `linear-gradient(135deg, #1e293b, #334155)`
-                                    : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
-                                  boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
-                                }}
-                              >
-                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Motif</div>
-                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.motif}</div>
-                              </div>
+                              {currentRequest.visitType === 'SPONTANEE' && currentRequest.motif && (
+                                <div 
+                                  className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                                  style={{
+                                    background: isDark 
+                                      ? `linear-gradient(135deg, #1e293b, #334155)`
+                                      : `linear-gradient(135deg, #ffffff, #f1f5f9)`,
+                                    boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03)`
+                                  }}
+                                >
+                                  <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Motif</div>
+                                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.motif}</div>
+                                </div>
+                              )}
                               <div 
                                 className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
                                 style={{
@@ -1005,8 +1007,8 @@ export default function DemandeVisiteMedicale() {
                                    currentRequest.visitType === 'PERIODIQUE' ? 'Périodique' :
                                    currentRequest.visitType === 'SURVEILLANCE_PARTICULIERE' ? 'Surveillance particulière' :
                                    currentRequest.visitType === 'APPEL_MEDECIN' ? "À l'appel du médecin" :
-                                   currentRequest.visitType === 'REPRISE' ? 'Reprise' :
-                                   currentRequest.visitType === 'EMBAUCHE' ? 'Embauche' : 
+                                   currentRequest.visitType === 'REPRISE' ? 'Reprise – Visite médicale de reprise' :
+                                   currentRequest.visitType === 'EMBAUCHE' ? "Visite médicale d'embauche" : 
                                    currentRequest.visitType || '-'}
                                 </div>
                               </div>
@@ -1036,7 +1038,8 @@ export default function DemandeVisiteMedicale() {
                                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{currentRequest.heureSouhaitee}</div>
                                 </div>
                               )}
-                              {/* Modalité */}
+                              {/* Modalité - only once set by medical staff */}
+                              {(currentRequest.proposedModality || currentRequest.modality) && (
                               <div 
                                 className="p-4 rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300"
                                 style={{
@@ -1055,6 +1058,7 @@ export default function DemandeVisiteMedicale() {
                                    'Non spécifiée'}
                                 </div>
                               </div>
+                              )}
                             </div>
 
                             {/* Consignes Section - Display instructions from nurse/doctor */}

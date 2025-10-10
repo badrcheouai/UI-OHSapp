@@ -28,6 +28,7 @@ interface Employee {
   firstName: string
   lastName: string
   email: string
+  cin?: string
   phoneNumber?: string
   department?: string
   position?: string
@@ -184,11 +185,12 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
 
   const filteredEmployees = employees.filter(employee => {
     // Create search string with only the real matricule (no OHSE- fallback)
-    const searchString = `${employee.firstName} ${employee.lastName} ${employee.email} ${employee.department || ''} ${employee.position || ''} ${employee.matriculeNumber || ''}`
+    const searchString = `${employee.firstName} ${employee.lastName} ${employee.email} ${employee.department || ''} ${employee.position || ''} ${employee.matriculeNumber || ''} ${employee.cin || ''}`
     
     // Check for exact matches first (more specific)
     const exactMatches = [
       employee.matriculeNumber?.toLowerCase(),
+      employee.cin?.toLowerCase(),
       employee.firstName?.toLowerCase(),
       employee.lastName?.toLowerCase(),
       employee.email?.toLowerCase()
@@ -198,8 +200,6 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
     const partialMatches = searchString.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matches = exactMatches || partialMatches
-    
-
     
     return matches
   })
@@ -242,13 +242,13 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
     <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
-                  placeholder="Rechercher par nom, email, département, matricule..."
+                  placeholder="Rechercher par nom, email, département, matricule ou CIN..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 focus:border-slate-400 dark:focus:border-slate-500 transition-all duration-300"
                 />
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Recherche par nom, email, département ou matricule (ex: MAT-1754494276214)
+                  Recherche par nom, email, département, matricule (ex: MAT-123...) ou CIN (ex: AB123456)
                 </div>
               </div>
             </div>
@@ -312,6 +312,12 @@ export function EmployeeSelect({ value, onValueChange, placeholder = "Sélection
                             <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500 truncate mt-1">
                               <Building className="h-3 w-3 shrink-0" />
                               <span className="truncate">{employee.matriculeNumber}</span>
+                            </div>
+                          )}
+                          {employee.cin && (
+                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500 truncate mt-1">
+                              <Building className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{employee.cin}</span>
                             </div>
                           )}
                         </div>

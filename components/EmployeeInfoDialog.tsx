@@ -495,6 +495,16 @@ export default function EmployeeInfoDialog({ open, onOpenChange, employeeId }: E
                       <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.matriculeNumber || '-'}</div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 rounded-lg">
+                    <div className="h-6 w-6 rounded-md flex items-center justify-center" 
+                         style={{background: `linear-gradient(135deg, ${themeColors.colors.primary[400]}, ${themeColors.colors.primary[500]})`}}>
+                      <IdCard className="h-3 w-3 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs">CIN</span>
+                      <div className="text-slate-900 dark:text-slate-100 font-medium text-sm">{data.cin || '-'}</div>
+                    </div>
+                  </div>
                   
                   {/* Manager Information */}
                   <div className="flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 rounded-lg">

@@ -310,7 +310,7 @@ export default function DashboardMedecin() {
                       </Badge>
                           </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">Appel médecin</span>
+                                              <span className="text-sm text-slate-600 dark:text-slate-400">À l'appel du médecin</span>
                       <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
                         {filteredRequests.filter(r => r.visitType === 'APPEL_MEDECIN').length}
                       </Badge>
